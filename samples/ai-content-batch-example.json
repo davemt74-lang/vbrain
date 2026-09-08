@@ -1,0 +1,50 @@
+{
+  "items": [
+    {
+      "title": "The 5:15 AM Flight",
+      "question": "Your flight is $320 cheaper if it leaves at 5:15 AM. What are we doing?",
+      "short_body": "How much is sleep worth in actual dollars?",
+      "humor_level": 4,
+      "sarcasm_level": 3,
+      "tags": ["airport", "flight", "early_morning", "budget"],
+      "choices": [
+        {
+          "choice_key": "cheap",
+          "label": "Set the alarm. I can sleep when I land.",
+          "brain_points": 7,
+          "trait_effects": [
+            {"trait": "budget_sensitivity", "score_delta": 8, "confidence_delta": 3},
+            {"trait": "morning_tolerance", "score_delta": 6, "confidence_delta": 3}
+          ]
+        },
+        {
+          "choice_key": "civilized",
+          "label": "Pay the $320. Vacation should not begin in darkness.",
+          "brain_points": 9,
+          "trait_effects": [
+            {"trait": "convenience", "score_delta": 8, "confidence_delta": 3},
+            {"trait": "morning_tolerance", "score_delta": -8, "confidence_delta": 4}
+          ]
+        }
+      ],
+      "achievement_opportunities": ["No Activities Before 10AM"],
+      "merch_opportunities": ["I Paid Extra to Sleep"],
+      "scores": {"quality": 92, "originality": 82, "humor": 88, "brand_fit": 96, "clarity": 98, "duplicate": 5, "safety": 100}
+    },
+    {
+      "title": "Fake Mexico Day",
+      "body": "A local warm-weather vacation substitute built around tacos, pool time and sunset drinks.",
+      "theme": "Mexico / beach",
+      "duration_minutes": 420,
+      "budget_level": 2,
+      "humor_level": 4,
+      "sarcasm_level": 2,
+      "tags": ["vacation_substitution", "food", "pool", "local"],
+      "steps": [
+        {"activity_type": "food", "title": "Breakfast tacos", "description": "Start somewhere you would happily photograph on vacation.", "duration_minutes": 60, "recommended_time": "10:30:00", "required_tags": ["food", "local"]},
+        {"activity_type": "pool", "title": "Find water and a chair", "description": "Hotel day pass, pool or any legal lounge-chair situation.", "duration_minutes": 120, "recommended_time": "12:00:00", "required_tags": ["pool", "local"]}
+      ],
+      "scores": {"quality": 94, "originality": 86, "humor": 85, "brand_fit": 97, "clarity": 96, "duplicate": 4, "safety": 100}
+    }
+  ]
+}

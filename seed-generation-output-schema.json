@@ -1,0 +1,92 @@
+{
+  "version": 2,
+  "type": "object",
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": {"type": "string"},
+          "body": {"type": "string"},
+          "question": {"type": "string"},
+          "short_body": {"type": "string"},
+          "theme": {"type": "string"},
+          "humor_level": {"type": "integer", "minimum": 0, "maximum": 5},
+          "sarcasm_level": {"type": "integer", "minimum": 0, "maximum": 5},
+          "tags": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {"type": "string"},
+                {"type": "object", "properties": {"slug": {"type": "string"}, "weight": {"type": "number"}}}
+              ]
+            }
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["choice_key", "label"],
+              "properties": {
+                "choice_key": {"type": "string"},
+                "label": {"type": "string"},
+                "description": {"type": "string"},
+                "brain_points": {"type": "integer"},
+                "trait_effects": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["trait", "score_delta"],
+                    "properties": {
+                      "trait": {"type": "string"},
+                      "score_delta": {"type": "number"},
+                      "confidence_delta": {"type": "number"}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["activity_type", "title"],
+              "properties": {
+                "activity_type": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+                "duration_minutes": {"type": "integer"},
+                "recommended_time": {"type": "string"},
+                "required_tags": {"type": "array", "items": {"type": "string"}},
+                "optional_tags": {"type": "array", "items": {"type": "string"}}
+              }
+            }
+          },
+          "duration_minutes": {"type": "integer"},
+          "duration_seconds": {"type": "integer"},
+          "budget_level": {"type": "integer", "minimum": 1, "maximum": 5},
+          "activity_text": {"type": "string"},
+          "ending_text": {"type": "string"},
+          "achievement_opportunities": {"type": "array", "items": {"type": "string"}},
+          "merch_opportunities": {"type": "array", "items": {"type": "string"}},
+          "scores": {
+            "type": "object",
+            "properties": {
+              "quality": {"type": "number"},
+              "originality": {"type": "number"},
+              "humor": {"type": "number"},
+              "brand_fit": {"type": "number"},
+              "clarity": {"type": "number"},
+              "duplicate": {"type": "number"},
+              "safety": {"type": "number"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

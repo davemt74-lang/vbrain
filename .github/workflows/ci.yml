@@ -1,0 +1,41 @@
+name: Vacation Brain CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  php-js-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Lint PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Check JavaScript syntax
+        run: node --check assets/app.js
+
+      - name: Verify ordered migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f db/001_schema.sql
+          test -f db/023_sample_data_destination_research.sql
+          COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
+          test "$COUNT" -eq 23

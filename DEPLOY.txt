@@ -1,0 +1,12 @@
+Vacation Brain v1.16 — Existing-install deploy
+
+1. Extract this package over the existing Vacation Brain application.
+2. Keep your existing config.php and uploads.
+3. Open the bottom-left user menu and choose Admin Dashboard.
+   - Legacy installs with no recorded owner will show a one-time owner recovery screen.
+   - Confirm the current account password once; this account becomes the installation Admin.
+4. Visit /upgrade.php.
+5. Run pending migration: 023_sample_data_destination_research.sql.
+6. Admin -> Sample Data controls whether the demo profiles/destinations/reports/merch are visible.
+
+This deploy archive intentionally does not include config.php, install.php, or the full-install SQL bundle.
