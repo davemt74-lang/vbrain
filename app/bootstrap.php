@@ -51,6 +51,7 @@ require_once __DIR__ . '/Services/VacationImageProfileService.php';
 require_once __DIR__ . '/Services/VacationPhotoPolicyService.php';
 require_once __DIR__ . '/Services/VacationPhotoService.php';
 require_once __DIR__ . '/Services/VacationPhotoGalleryService.php';
+require_once __DIR__ . '/Services/VacationPhotoAgentService.php';
 require_once __DIR__ . '/Services/DreamService.php';
 require_once __DIR__ . '/Services/WeatherEnvyService.php';
 require_once __DIR__ . '/Services/RoastService.php';
