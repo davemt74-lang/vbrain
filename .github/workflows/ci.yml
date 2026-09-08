@@ -36,6 +36,6 @@ jobs:
         run: |
           set -euo pipefail
           test -f db/001_schema.sql
-          test -f db/025_comprehensive_image_profile.sql
+          test -f db/026_destination_prompt_ai_builder.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 25
+          test "$COUNT" -eq 26
