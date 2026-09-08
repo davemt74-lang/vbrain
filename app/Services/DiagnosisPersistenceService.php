@@ -26,8 +26,7 @@ final class DiagnosisPersistenceService
             ]);
             $resultId=(int)$this->pdo->lastInsertId();
 
-            $score=(new ScoreService($this->pdo))->summary($userId);
-            $existing=(int)($score['vacation_brain_score']??0);$newDiagnosis=(int)($diagnosis['vacation_brain_score']??0);
+            $scoreStmt=$this->pdo->prepare('SELECT vacation_brain_score FROM user_score_summary WHERE user_id=? FOR UPDATE');$scoreStmt->execute([$userId]);$existing=(int)($scoreStmt->fetchColumn()?:0);$newDiagnosis=(int)($diagnosis['vacation_brain_score']??0);
             if($newDiagnosis>$existing)$this->pdo->prepare('UPDATE user_score_summary SET vacation_brain_score=?,updated_at=NOW() WHERE user_id=?')->execute([$newDiagnosis,$userId]);
             try{(new AchievementService($this->pdo))->evaluate($userId);}catch(Throwable){}
             $this->pdo->commit();
