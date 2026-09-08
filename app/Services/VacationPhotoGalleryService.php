@@ -18,6 +18,7 @@ final class VacationPhotoGalleryService
 
     public function gallery(int $userId,array $filters=[]): array
     {
+        if(!site_setting_bool('vacation_photos.gallery_enabled',true))return [];
         $sql='SELECT g.*,d.name AS catalog_destination_name,dt.name AS dream_trip_name FROM vacation_photo_generations g LEFT JOIN destination_catalog d ON d.id=g.destination_catalog_id LEFT JOIN dream_trips dt ON dt.id=g.dream_trip_id WHERE g.user_id=? AND g.status="completed" AND g.image_url IS NOT NULL AND g.deleted_at IS NULL';$args=[$userId];
         if(empty($filters['archived']))$sql.=' AND g.archived=0';else $sql.=' AND g.archived=1';
         if(!empty($filters['favorites']))$sql.=' AND g.favorite=1';
@@ -27,6 +28,7 @@ final class VacationPhotoGalleryService
 
     public function destinations(int $userId): array
     {
+        if(!site_setting_bool('vacation_photos.gallery_enabled',true))return [];
         $stmt=$this->pdo->prepare('SELECT COALESCE(destination_catalog_id,0) destination_id,destination,COUNT(*) image_count,SUM(favorite=1) favorite_count,MAX(created_at) last_created FROM vacation_photo_generations WHERE user_id=? AND status="completed" AND image_url IS NOT NULL AND deleted_at IS NULL AND archived=0 GROUP BY COALESCE(destination_catalog_id,0),destination ORDER BY last_created DESC');$stmt->execute([$userId]);return $stmt->fetchAll()?:[];
     }
 
@@ -49,7 +51,8 @@ final class VacationPhotoGalleryService
 
     public function enableShare(int $userId,int $id): string
     {
-        if(!site_setting_bool('vacation_photos.sharing_enabled',true))throw new RuntimeException('Vacation photo sharing is currently disabled.');$row=$this->item($userId,$id);if(!$row||empty($row['image_url'])||!empty($row['deleted_at']))throw new RuntimeException('Vacation photo not found.');
+        if(!site_setting_bool('vacation_photos.sharing_enabled',true))throw new RuntimeException('Vacation photo sharing is currently disabled.');
+        $row=$this->item($userId,$id);if(!$row||empty($row['image_url'])||!empty($row['deleted_at']))throw new RuntimeException('Vacation photo not found.');
         $token=(string)($row['share_token']??'');if($token==='')$token=bin2hex(random_bytes(20));
         $this->pdo->prepare('UPDATE vacation_photo_generations SET share_token=?,share_enabled=1 WHERE id=? AND user_id=?')->execute([$token,$id,$userId]);return $token;
     }
@@ -61,6 +64,7 @@ final class VacationPhotoGalleryService
 
     public function publicShared(string $token): ?array
     {
+        if(!site_setting_bool('vacation_photos.sharing_enabled',true))return null;
         if(!preg_match('/^[a-f0-9]{40}$/',$token))return null;$stmt=$this->pdo->prepare('SELECT id,destination,scene,vibe,over_the_top_strength,image_url,created_at FROM vacation_photo_generations WHERE share_token=? AND share_enabled=1 AND status="completed" AND image_url IS NOT NULL AND deleted_at IS NULL LIMIT 1');$stmt->execute([$token]);return $stmt->fetch()?:null;
     }
 
