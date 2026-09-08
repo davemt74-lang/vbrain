@@ -52,6 +52,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
       <a class="<?=nav_active(['destinations.php','destination-prompts.php'])?>" href="<?=e(app_url('admin/destinations.php'))?>"><span>⌖</span>Destinations</a>
       <a class="<?=nav_active(['destination-ai-create.php'])?>" href="<?=e(app_url('admin/destination-ai-create.php'))?>"><span>✦</span>AI Create Destination</a>
       <a class="<?=nav_active(['destination-reports.php'])?>" href="<?=e(app_url('admin/destination-reports.php'))?>"><span>◫</span>Destination Research</a>
+      <a class="<?=nav_active(['vacation-photos.php'])?>" href="<?=e(app_url('admin/vacation-photos.php'))?>"><span>▧</span>Vacation Yourself</a>
       <a class="<?=nav_active(['shop.php'])?>" href="<?=e(app_url('admin/shop.php'))?>"><span>▣</span>Merch / Shopping</a>
       <a class="<?=nav_active(['sample-data.php'])?>" href="<?=e(app_url('admin/sample-data.php'))?>"><span>◉</span>Sample Data</a>
       <a class="<?=nav_active(['brand-pwa.php'])?>" href="<?=e(app_url('admin/brand-pwa.php'))?>"><span>◈</span>Brand & PWA</a>
@@ -71,6 +72,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
       <a class="<?=nav_active(['escape.php','breaks.php','vacation-break.php','substitutions.php','substitution.php','weather-envy.php','generator.php','roast.php'])?>" href="<?=e(app_url('escape.php'))?>"><span>☼</span>Escape</a>
       <a class="<?=nav_active(['dream.php','dream-trip.php'])?>" href="<?=e(app_url('dream.php'))?>"><span>☁</span>Dream</a>
       <a class="<?=nav_active(['destinations.php'])?>" href="<?=e(app_url('destinations.php'))?>"><span>⌖</span>Destinations</a>
+      <a class="<?=nav_active(['vacation-yourself.php','vacation-gallery.php'])?>" href="<?=e(app_url('vacation-gallery.php'))?>"><span>▧</span>My Fake Vacations</a>
       <a class="<?=nav_active(['shop.php','shop-product.php','cart.php','checkout.php','merch.php'])?>" href="<?=e(app_url('shop.php'))?>"><span>▣</span>Shop</a>
       <span class="sidebar-section-label second">Travel Matching</span>
       <a class="<?=nav_active(['matching.php','match-user.php','compare.php'])?>" href="<?=e(app_url('matching.php'))?>"><span>♥</span>Discover</a>
@@ -89,6 +91,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
     </button>
     <div class="sidebar-user-menu" data-user-menu>
       <a href="<?=e(app_url('profile.php'))?>">My Vacation Brain</a>
+      <a href="<?=e(app_url('vacation-gallery.php'))?>">My Fake Vacations</a>
       <a href="<?=e(app_url('account.php'))?>">Account & Settings</a>
       <a href="<?=e(app_url('match-profile.php'))?>">Travel Match Profile</a>
       <a href="<?=e(app_url('notification-settings.php'))?>">Notification Settings</a>
