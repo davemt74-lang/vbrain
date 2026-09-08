@@ -1,0 +1,9 @@
+<?php
+require __DIR__.'/../app/bootstrap.php';$adminId=require_admin();
+if(!db_table_exists('destination_reports'))redirect('upgrade.php');
+$service=new DestinationResearchService(db());$rows=$service->recentReports(150);$title='Destination Research — Admin';require __DIR__.'/../partials/header.php';
+?>
+<section class="dashboard"><div class="shell"><div class="dashboard-head"><div><div class="eyebrow">Admin · Destination Research</div><h1>Research library</h1><p class="muted">Every generated destination report is retained so Vacation Brain can reuse what it already learned instead of starting from zero.</p></div><a class="button primary small" href="<?=e(app_url('destination-report.php'))?>">Research a destination</a></div>
+<div class="dashboard-card"><div class="table-wrap"><table class="admin-table"><thead><tr><th>Destination</th><th>Mode</th><th>Provider</th><th>Generated</th><th></th></tr></thead><tbody><?php foreach($rows as $r):?><tr><td><strong><?=e($r['destination_name']?:$r['normalized_location']?:$r['query_text'])?></strong><?php if(!empty($r['is_sample'])):?><br><span class="sample-badge">Sample</span><?php endif;?></td><td><?=e($r['research_mode'])?></td><td><?=e(trim((string)$r['provider'].' '.(string)$r['model_name']))?:'—'?></td><td><?=e($r['generated_at'])?></td><td><a href="<?=e(app_url('destination-report.php?report_id='.(int)$r['id']))?>">View report</a></td></tr><?php endforeach;?><?php if(!$rows):?><tr><td colspan="5">No destination research saved yet.</td></tr><?php endif;?></tbody></table></div></div>
+<div class="dashboard-card" style="margin-top:20px"><h2>Research criteria</h2><div class="research-criteria-grid"><?php foreach($service->criteria() as $key=>$label):?><div class="info-card"><strong><?=e(ucwords(str_replace('_',' ',$key)))?></strong><p><?=e($label)?></p></div><?php endforeach;?></div></div></div></section>
+<?php require __DIR__.'/../partials/footer.php';?>

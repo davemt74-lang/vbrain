@@ -1,0 +1,9 @@
+<?php
+require __DIR__.'/app/bootstrap.php';$userId=require_auth();$pdo=db();$service=new VacationAgentService($pdo);$error='';
+if($_SERVER['REQUEST_METHOD']==='POST'){verify_csrf();try{$service->send($userId,(string)($_POST['message']??''));redirect('agent.php');}catch(Throwable $e){$error=$e->getMessage();}}
+$history=$service->history($userId);$profile=(new VacationProfileService($pdo))->snapshot($userId);$title='Ask Vacation Brain';require __DIR__.'/partials/header.php';
+?>
+<section class="agent-page"><div class="shell narrow"><div class="agent-head"><div><div class="eyebrow">Vacation Brain Agent</div><h1>Ask the brain.</h1><p>It knows your swipes, score, dreams and questionable vacation priorities.</p></div><span><?=e($profile['archetype']['name'])?></span></div><?php if($error):?><div class="alert error"><?=e($error)?></div><?php endif;?>
+<div class="agent-chat" data-agent-chat><?php if(!$history):?><div class="agent-welcome"><strong>Vacation Brain</strong><p>Ask what I have learned about you, where you should daydream about, whether your morning excursion is a bad idea, or just ask me to roast you.</p></div><?php endif;?><?php foreach($history as $m):?><div class="chat-row <?=$m['role']==='user'?'user':'assistant'?>"><div><?=e($m['body'])?></div></div><?php endforeach;?></div>
+<div class="agent-composer-dock"><div class="agent-composer-dock-inner"><form method="post" class="agent-composer full"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input name="message" placeholder="Ask Vacation Brain…" autocomplete="off" required><button aria-label="Send">↑</button></form><div class="agent-suggestions"><a href="?prompt=profile">What have you learned about me?</a><a href="<?=e(app_url('roast.php'))?>">Roast me</a><a href="<?=e(app_url('escape.php'))?>">I need an escape</a></div></div></div></div></section>
+<?php require __DIR__.'/partials/footer.php';?>

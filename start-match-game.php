@@ -1,0 +1,2 @@
+<?php
+require __DIR__.'/app/bootstrap.php';$userId=require_auth();if($_SERVER['REQUEST_METHOD']!=='POST')redirect('matching.php');verify_csrf();$partner=(int)($_POST['partner']??0);$type=(string)($_POST['game_type']??'');try{$game=(new TravelMatchService(db()))->createGame($userId,$partner?:null,$type);redirect('match-game.php?token='.$game['token']);}catch(Throwable $e){flash('error',$e->getMessage());redirect($partner?'match-user.php?user='.$partner:'matching.php');}

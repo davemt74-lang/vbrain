@@ -1,0 +1,6 @@
+<?php
+require __DIR__.'/app/bootstrap.php';$userId=require_auth();$pdo=db();
+if($_SERVER['REQUEST_METHOD']==='POST'){verify_csrf();$pdo->prepare('INSERT INTO user_events (user_id,event_type,value_text) VALUES (? ,"roast_generated","again")')->execute([$userId]);(new ScoreService($pdo))->award($userId,'roast_generated',1);redirect('roast.php');}
+$roast=(new RoastService($pdo))->generate($userId);$title='Roast My Vacation Brain';require __DIR__.'/partials/header.php';
+?>
+<section class="dashboard roast-page"><div class="shell narrow"><div class="eyebrow">Roast My Vacation Brain</div><h1 class="page-title"><?=e($roast['headline'])?></h1><p class="lede">These statements are derived from your actual swipes, check-ins and profile. You did this to yourself.</p><div class="roast-stack"><?php foreach($roast['lines'] as $i=>$line):?><article><span>EXHIBIT <?=($i+1)?></span><p><?=e($line)?></p></article><?php endforeach;?></div><form method="post" class="share-row"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><button class="button primary">Roast me again</button><a class="button secondary" href="<?=e(app_url('share.php'))?>">Share my diagnosis</a></form></div></section><?php require __DIR__.'/partials/footer.php';?>
