@@ -1,0 +1,121 @@
+<?php
+require __DIR__.'/../app/bootstrap.php';
+$adminId=require_admin();
+$pdo=db();
+if(!db_table_exists('vacation_photo_user_limits'))redirect('upgrade.php');
+$policy=new VacationPhotoPolicyService($pdo);
+$error=null;$success=flash('success');
+
+if($_SERVER['REQUEST_METHOD']==='POST'){
+    verify_csrf();
+    try{
+        $action=(string)($_POST['action']??'settings');
+        if($action==='settings'){
+            $policy->saveDefaults($_POST,$adminId);
+            flash('success','Vacation Yourself generation policy saved.');
+        }elseif($action==='user_limit'){
+            $policy->saveUserLimit((int)($_POST['user_id']??0),$_POST,$adminId);
+            flash('success','User generation limits saved.');
+        }
+        redirect('admin/vacation-photos.php'.(!empty($_POST['user_id'])?'?user_id='.(int)$_POST['user_id']:''));
+    }catch(Throwable $e){$error=$e->getMessage();}
+}
+
+$period=max(1,min(365,(int)($_GET['days']??30)));
+$stats=$policy->aggregate($period);
+$allStats=$policy->aggregate(null);
+$sampleClause=(db_column_exists('users','is_sample')&&!sample_data_enabled())?'u.is_sample=0':'1=1';
+$users=$pdo->query('SELECT u.id,u.display_name,u.email,l.daily_limit,l.monthly_limit,l.lifetime_limit,l.comped_generations,l.notes FROM users u LEFT JOIN vacation_photo_user_limits l ON l.user_id=u.id WHERE u.status="active" AND '.$sampleClause.' ORDER BY u.display_name,u.email LIMIT 500')->fetchAll();
+$settings=[
+    'enabled'=>site_setting_bool('vacation_photos.enabled',true),
+    'gallery_enabled'=>site_setting_bool('vacation_photos.gallery_enabled',true),
+    'sharing_enabled'=>site_setting_bool('vacation_photos.sharing_enabled',true),
+    'daily_limit'=>(int)site_setting('vacation_photos.daily_limit','8'),
+    'monthly_limit'=>(int)site_setting('vacation_photos.monthly_limit','40'),
+    'lifetime_limit'=>(int)site_setting('vacation_photos.lifetime_limit','0'),
+    'default_quality'=>site_setting('vacation_photos.default_quality','medium'),
+    'default_over_the_top'=>(int)site_setting('vacation_photos.default_over_the_top','35'),
+    'max_reference_images'=>(int)site_setting('vacation_photos.max_reference_images','4'),
+];
+$costKeys=[
+    'low.square'=>'Low · square',
+    'low.large'=>'Low · landscape/portrait',
+    'medium.square'=>'Medium · square',
+    'medium.large'=>'Medium · landscape/portrait',
+    'high.square'=>'High · square',
+    'high.large'=>'High · landscape/portrait',
+    'reference_image'=>'Each reference image',
+];
+$selectedUser=max(0,(int)($_GET['user_id']??0));$selectedRow=null;
+foreach($users as $row){if((int)$row['id']===$selectedUser){$selectedRow=$row;break;}}
+$selectedStatus=$selectedRow?$policy->status((int)$selectedRow['id']):null;
+$title='Vacation Yourself — Admin';
+require __DIR__.'/../partials/header.php';
+?>
+<style>
+.vp-admin-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,.72fr);gap:22px}.vp-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 24px}.vp-stat{padding:18px;border:1px solid #e6e6e6;border-radius:18px;background:#fff}.vp-stat strong{display:block;font-size:28px}.vp-cost-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vp-user-list{max-height:660px;overflow:auto}.vp-user-row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid #eee}.vp-user-row a{text-decoration:none}.vp-allowance{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.vp-allowance div{padding:12px;border:1px solid #e7e7e7;border-radius:14px;background:#fafafa}.vp-allowance strong{display:block;font-size:20px}.vp-custom{display:inline-block;margin-top:4px;padding:2px 6px;border-radius:999px;background:#f0f0f0;font-size:11px}@media(max-width:900px){.vp-admin-grid,.vp-stat-grid{grid-template-columns:1fr 1fr}}@media(max-width:620px){.vp-admin-grid,.vp-stat-grid,.vp-cost-grid,.vp-allowance{grid-template-columns:1fr}}
+</style>
+<section class="dashboard"><div class="shell">
+<div class="dashboard-head"><div><span class="eyebrow">Admin · Vacation Yourself</span><h1>Generation policy & economics</h1><p class="muted">Control access, quotas, default image settings, sharing, and planning-cost assumptions. Cost figures are internal estimates, not provider invoices.</p></div><a class="button secondary small" href="<?=e(app_url('vacation-gallery.php'))?>">Open gallery</a></div>
+<?php if($success):?><div class="alert success"><?=e($success)?></div><?php endif;?><?php if($error):?><div class="alert error"><?=e($error)?></div><?php endif;?>
+
+<div class="vp-stat-grid">
+  <div class="vp-stat"><span class="eyebrow"><?=$period?> days</span><strong><?=number_format($stats['count'])?></strong><span>completed generations</span></div>
+  <div class="vp-stat"><span class="eyebrow">Estimated spend</span><strong>$<?=number_format((float)$stats['estimated_cost'],2)?></strong><span><?=$period?>-day planning estimate</span></div>
+  <div class="vp-stat"><span class="eyebrow">Lifetime</span><strong><?=number_format($allStats['count'])?></strong><span>completed generations</span></div>
+  <div class="vp-stat"><span class="eyebrow">Retained gallery</span><strong><?=number_format($allStats['retained_count'])?></strong><span><?=number_format($allStats['deleted_count'])?> deleted after generation</span></div>
+</div>
+
+<div class="vp-admin-grid">
+<form class="dashboard-card stack" method="post">
+<input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="settings">
+<h2>Global generation policy</h2>
+<label class="check-row"><input type="checkbox" name="enabled" value="1" <?=$settings['enabled']?'checked':''?>> Enable Vacation Yourself image generation</label>
+<label class="check-row"><input type="checkbox" name="gallery_enabled" value="1" <?=$settings['gallery_enabled']?'checked':''?>> Enable My Fake Vacations gallery</label>
+<label class="check-row"><input type="checkbox" name="sharing_enabled" value="1" <?=$settings['sharing_enabled']?'checked':''?>> Allow users to create/open public share links</label>
+<div class="form-grid">
+<label>Daily limit <small>0 = unlimited</small><input class="input" type="number" min="0" max="1000" name="daily_limit" value="<?=$settings['daily_limit']?>"></label>
+<label>Monthly limit <small>0 = unlimited</small><input class="input" type="number" min="0" max="10000" name="monthly_limit" value="<?=$settings['monthly_limit']?>"></label>
+<label>Lifetime limit <small>0 = unlimited</small><input class="input" type="number" min="0" max="1000000" name="lifetime_limit" value="<?=$settings['lifetime_limit']?>"></label>
+</div>
+<div class="form-grid">
+<label>Default quality<select class="input" name="default_quality"><?php foreach(['low','medium','high'] as $q):?><option value="<?=$q?>" <?=$settings['default_quality']===$q?'selected':''?>><?=ucfirst($q)?></option><?php endforeach;?></select></label>
+<label>Default Over the Top<input class="input" type="number" min="0" max="100" name="default_over_the_top" value="<?=$settings['default_over_the_top']?>"></label>
+<label>Max reference photos<input class="input" type="number" min="1" max="4" name="max_reference_images" value="<?=$settings['max_reference_images']?>"></label>
+</div>
+<hr><h3>Planning-cost assumptions</h3>
+<p class="muted small">New generations snapshot their estimate at creation. Older pre-snapshot generations use the current assumptions when displayed.</p>
+<div class="vp-cost-grid"><?php foreach($costKeys as $key=>$label):?><label><?=$label?><input class="input" type="number" min="0" max="10" step="0.0001" name="cost_<?=$key?>" value="<?=e(site_setting('vacation_photos.estimate.'.$key,'0'))?>"></label><?php endforeach;?></div>
+<button class="button primary" type="submit">Save Vacation Yourself Policy</button>
+</form>
+
+<div>
+<article class="dashboard-card"><h2>User overrides</h2><p class="muted">Blank values inherit global limits. Comped generations extend only a non-zero lifetime allowance.</p><div class="vp-user-list">
+<?php foreach($users as $row):$custom=$row['daily_limit']!==null||$row['monthly_limit']!==null||$row['lifetime_limit']!==null||(int)$row['comped_generations']>0;?><div class="vp-user-row"><div><strong><?=e($row['display_name']?:'Vacation Brain User')?></strong><div class="muted small"><?=e($row['email'])?></div><?php if($custom):?><span class="vp-custom">Custom policy</span><?php endif;?></div><a href="<?=e(app_url('admin/vacation-photos.php?user_id='.(int)$row['id']))?>">Limits</a></div><?php endforeach;?>
+</div></article>
+
+<?php if($selectedRow&&$selectedStatus):?>
+<form class="dashboard-card stack" style="margin-top:20px" method="post">
+<input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="user_limit"><input type="hidden" name="user_id" value="<?=(int)$selectedRow['id']?>">
+<h2><?=e($selectedRow['display_name']?:$selectedRow['email'])?></h2>
+<div class="vp-allowance">
+<div><span class="eyebrow">Today</span><strong><?=number_format((int)$selectedStatus['usage']['today'])?></strong><small><?= $selectedStatus['remaining']['daily']===null?'Unlimited':number_format((int)$selectedStatus['remaining']['daily']).' remaining' ?></small></div>
+<div><span class="eyebrow">This month</span><strong><?=number_format((int)$selectedStatus['usage']['month'])?></strong><small><?= $selectedStatus['remaining']['monthly']===null?'Unlimited':number_format((int)$selectedStatus['remaining']['monthly']).' remaining' ?></small></div>
+<div><span class="eyebrow">Lifetime</span><strong><?=number_format((int)$selectedStatus['usage']['lifetime'])?></strong><small><?= $selectedStatus['remaining']['lifetime']===null?'Unlimited':number_format((int)$selectedStatus['remaining']['lifetime']).' remaining' ?></small></div>
+</div>
+<?php if(!$selectedStatus['allowed']):?><div class="alert warning"><?=e($selectedStatus['reason'])?></div><?php endif;?>
+<div class="form-grid"><label>Daily override<input class="input" type="number" min="0" name="daily_limit" value="<?=e($selectedRow['daily_limit']===null?'':(string)$selectedRow['daily_limit'])?>" placeholder="Inherit"></label><label>Monthly override<input class="input" type="number" min="0" name="monthly_limit" value="<?=e($selectedRow['monthly_limit']===null?'':(string)$selectedRow['monthly_limit'])?>" placeholder="Inherit"></label><label>Lifetime override<input class="input" type="number" min="0" name="lifetime_limit" value="<?=e($selectedRow['lifetime_limit']===null?'':(string)$selectedRow['lifetime_limit'])?>" placeholder="Inherit"></label></div>
+<label>Comped generations<input class="input" type="number" min="0" name="comped_generations" value="<?=(int)$selectedRow['comped_generations']?>"></label>
+<label>Notes<input class="input" name="notes" maxlength="500" value="<?=e((string)$selectedRow['notes'])?>"></label>
+<button class="button primary">Save User Limits</button>
+</form>
+<?php endif;?>
+</div></div>
+
+<div class="dashboard-card" style="margin-top:24px"><div class="section-head"><div><span class="eyebrow">Recent generations</span><h2>Usage ledger</h2></div><form method="get"><?php if($selectedUser):?><input type="hidden" name="user_id" value="<?=$selectedUser?>"><?php endif;?><select class="input" name="days" onchange="this.form.submit()"><?php foreach([7,30,90,365] as $d):?><option value="<?=$d?>" <?=$period===$d?'selected':''?>><?=$d?> days</option><?php endforeach;?></select></form></div>
+<div class="table-wrap"><table class="admin-table"><thead><tr><th>User</th><th>Destination</th><th>Quality</th><th>References</th><th>Est. cost</th><th>Gallery</th><th>Created</th></tr></thead><tbody>
+<?php foreach(array_slice($stats['rows'],0,200) as $row):$refs=json_decode((string)($row['source_refs_json']??'[]'),true)?:[];?><tr><td><strong><?=e($row['display_name']?:'User')?></strong><br><small><?=e($row['email'])?></small></td><td><?=e($row['destination'])?></td><td><?=e($row['quality'])?> · <?=e($row['size'])?></td><td><?=count($refs)?></td><td>$<?=number_format((float)$row['_estimated_cost'],4)?></td><td><?=!empty($row['_retained'])?'Retained':'Deleted'?></td><td><?=e((string)$row['created_at'])?></td></tr><?php endforeach;?>
+<?php if(!$stats['rows']):?><tr><td colspan="7" class="muted">No completed generations in this period.</td></tr><?php endif;?>
+</tbody></table></div></div>
+</div></section>
+<?php require __DIR__.'/../partials/footer.php';?>
