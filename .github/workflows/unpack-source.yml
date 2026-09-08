@@ -1,9 +1,7 @@
 name: Bootstrap Vacation Brain source
 
 on:
-  push:
-    branches:
-      - build/vacation-brain-v1-11
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,32 +10,4 @@ jobs:
   unpack:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Expand application source
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f package/vacation-brain-v1.zip
-          rm -rf .bootstrap-vbrain
-          mkdir .bootstrap-vbrain
-          unzip -q package/vacation-brain-v1.zip -d .bootstrap-vbrain
-          test -d .bootstrap-vbrain/vacation-brain-v1
-          rsync -a --exclude='.git/' --exclude='.github/' .bootstrap-vbrain/vacation-brain-v1/ ./
-          rm -rf .bootstrap-vbrain package
-          rm -f .github/workflows/unpack-source.yml
-          rmdir .github/workflows 2>/dev/null || true
-          rmdir .github 2>/dev/null || true
-
-      - name: Commit expanded source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Add Vacation Brain v1.11 application source"
-          git push origin HEAD:build/vacation-brain-v1-11
+      - run: echo "Bootstrap paused while package chunks upload."
