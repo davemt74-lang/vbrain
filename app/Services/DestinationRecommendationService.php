@@ -24,11 +24,15 @@ final class DestinationRecommendationService
 
     public function recommendations(int $userId,int $limit=3): array
     {
-        if(!db_table_exists('destination_catalog'))return [];
-        $limit=max(1,min(8,$limit));
         $traits=(new VacationProfileService($this->pdo))->snapshot($userId)['traits']??[];
-        $weighted=[];
-        foreach($traits as $slug=>$row){$score=(float)($row['score']??50);$confidence=(float)($row['confidence']??0);if($score<55||$confidence<10)continue;$weighted[$slug]=max(0,($score-50)/50)*max(.25,min(1,$confidence/100));}
+        return $this->recommendationsFromTraits($traits,$limit);
+    }
+
+    public function recommendationsFromTraits(array $traits,int $limit=3): array
+    {
+        if(!db_table_exists('destination_catalog'))return [];
+        $limit=max(1,min(8,$limit));$weighted=[];
+        foreach($traits as $slug=>$row){$score=(float)($row['score']??50);$confidence=(float)($row['confidence']??100);if($score<55||$confidence<10)continue;$weighted[$slug]=max(0,($score-50)/50)*max(.25,min(1,$confidence/100));}
         arsort($weighted);$weighted=array_slice($weighted,0,8,true);
 
         $sampleClause=(db_column_exists('destination_catalog','is_sample')&&!sample_data_enabled())?' AND d.is_sample=0':'';
@@ -38,7 +42,7 @@ final class DestinationRecommendationService
         foreach($rows as $row){
             $haystack=strtolower(implode(' ',[(string)($row['name']??''),(string)($row['short_description']??''),(string)($row['description']??''),(string)($row['best_for']??''),(string)($row['vibe']??''),(string)($row['prompt_summary']??''),(string)($row['visual_keywords_json']??''),(string)($row['activity_keywords_json']??''),(string)($row['default_vibes_json']??'')]));
             $score=!empty($row['featured'])?3.0:0.0;$reasons=[];
-            foreach($weighted as $slug=>$weight){$matches=0;foreach(self::TRAIT_TERMS[$slug]??[$slug] as $term){if(str_contains($haystack,strtolower($term)))$matches++;}if($matches){$points=$weight*(3+min(3,$matches));$score+=$points;$label=(string)($traits[$slug]['name']??ucwords(str_replace('_',' ',$slug)));$reasons[$slug]=$label;}}
+            foreach($weighted as $slug=>$weight){$matches=0;foreach(self::TRAIT_TERMS[$slug]??[$slug] as $term){if(str_contains($haystack,strtolower($term)))$matches++;}if($matches){$score+=$weight*(3+min(3,$matches));$label=(string)($traits[$slug]['name']??ucwords(str_replace('_',' ',$slug)));$reasons[$slug]=$label;}}
             $row['_recommendation_score']=$score;$row['_recommendation_reasons']=array_values($reasons);$scored[]=$row;
         }
         usort($scored,fn($a,$b)=>($b['_recommendation_score']<=>$a['_recommendation_score'])?:((int)$b['featured']<=>(int)$a['featured'])?:((int)$a['sort_order']<=>(int)$b['sort_order']));
