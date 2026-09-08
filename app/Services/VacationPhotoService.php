@@ -103,7 +103,7 @@ final class VacationPhotoService
         try{
             $paths=[];foreach($selected as $row){$path=$this->localPath((string)$row['url']);if($path)$paths[]=$path;}
             if(!$paths) throw new RuntimeException('Vacation Brain could not access the selected reference photos on this server.');
-            $result=$this->callOpenAi((string)$provider['api_key'],$model,$prompt,$paths,$size,$quality);
+            $result=$this->callOpenAi($userId,(string)$provider['api_key'],$model,$prompt,$paths,$size,$quality);
             $imageUrl=$this->saveGeneratedImage($userId,$generationId,$result['bytes']);
             $this->pdo->prepare('UPDATE vacation_photo_generations SET status="completed",image_url=?,api_request_id=?,completed_at=NOW() WHERE id=? AND user_id=?')->execute([$imageUrl,$result['request_id']?:null,$generationId,$userId]);
             return ['id'=>$generationId,'image_url'=>$imageUrl,'destination'=>$destination,'vibe'=>$vibe];
@@ -115,21 +115,59 @@ final class VacationPhotoService
         }
     }
 
-    private function callOpenAi(string $apiKey,string $model,string $prompt,array $paths,string $size,string $quality): array
+    private function callOpenAi(int $userId,string $apiKey,string $model,string $prompt,array $paths,string $size,string $quality): array
     {
         if(!function_exists('curl_init')) throw new RuntimeException('PHP cURL is required for image generation.');
-        $fields=['model'=>$model,'prompt'=>$prompt,'size'=>$size,'quality'=>$quality,'output_format'=>'png','input_fidelity'=>'high'];
-        foreach(array_values($paths) as $i=>$path){$mime=(new finfo(FILEINFO_MIME_TYPE))->file($path) ?: 'image/jpeg';$fields['image['.$i.']']=new CURLFile($path,$mime,basename($path));}
+        [$multipart,$boundary]=$this->multipartBody([
+            'model'=>$model,
+            'prompt'=>$prompt,
+            'size'=>$size,
+            'quality'=>$quality,
+            'output_format'=>'png',
+        ],$paths);
         $headers=[];$ch=curl_init('https://api.openai.com/v1/images/edits');
-        curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_POST=>true,CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$apiKey],CURLOPT_POSTFIELDS=>$fields,CURLOPT_TIMEOUT=>120,CURLOPT_HEADERFUNCTION=>static function($ch,string $line)use(&$headers){$len=strlen($line);$parts=explode(':',$line,2);if(count($parts)===2)$headers[strtolower(trim($parts[0]))]=trim($parts[1]);return $len;}]);
+        curl_setopt_array($ch,[
+            CURLOPT_RETURNTRANSFER=>true,
+            CURLOPT_POST=>true,
+            CURLOPT_HTTPHEADER=>[
+                'Authorization: Bearer '.$apiKey,
+                'Content-Type: multipart/form-data; boundary='.$boundary,
+                'Content-Length: '.strlen($multipart),
+            ],
+            CURLOPT_POSTFIELDS=>$multipart,
+            CURLOPT_TIMEOUT=>120,
+            CURLOPT_HEADERFUNCTION=>static function($ch,string $line)use(&$headers){$len=strlen($line);$parts=explode(':',$line,2);if(count($parts)===2)$headers[strtolower(trim($parts[0]))]=trim($parts[1]);return $len;},
+        ]);
         $body=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);$transport=curl_error($ch);curl_close($ch);
         if($body===false||$transport!=='') throw new RuntimeException('OpenAI image request failed: '.$transport);
         $json=json_decode((string)$body,true) ?: [];
         if($status<200||$status>=300){$message=(string)($json['error']['message']??('OpenAI returned HTTP '.$status.'.'));throw new RuntimeException($message);}
         $b64=(string)($json['data'][0]['b64_json']??'');if($b64==='') throw new RuntimeException('OpenAI did not return image data.');
         $bytes=base64_decode($b64,true);if($bytes===false||$bytes==='') throw new RuntimeException('Vacation Brain could not decode the generated image.');
-        try{$this->pdo->prepare('INSERT INTO ai_provider_usage_log (provider,user_id,purpose,model_name,success) VALUES (?,?,?,?,1)')->execute(['openai',auth_user_id(),'vacation_photo',$model]);}catch(Throwable){}
+        try{$this->pdo->prepare('INSERT INTO ai_provider_usage_log (provider,user_id,purpose,model_name,success) VALUES (?,?,?,?,1)')->execute(['openai',$userId,'vacation_photo',$model]);}catch(Throwable){}
         return ['bytes'=>$bytes,'request_id'=>$headers['x-request-id']??''];
+    }
+
+    private function multipartBody(array $fields,array $paths): array
+    {
+        $boundary='--------------------------'.bin2hex(random_bytes(12));$eol="\r\n";$body='';
+        foreach($fields as $name=>$value){
+            $body.='--'.$boundary.$eol;
+            $body.='Content-Disposition: form-data; name="'.$name.'"'.$eol.$eol;
+            $body.=(string)$value.$eol;
+        }
+        $finfo=new finfo(FILEINFO_MIME_TYPE);
+        foreach($paths as $path){
+            $bytes=file_get_contents($path);if($bytes===false)throw new RuntimeException('Vacation Brain could not read a selected reference photo.');
+            $filename=preg_replace('/[^A-Za-z0-9._-]/','_',basename($path)) ?: 'reference.jpg';
+            $mime=(string)($finfo->file($path) ?: 'image/jpeg');
+            $body.='--'.$boundary.$eol;
+            $body.='Content-Disposition: form-data; name="image[]"; filename="'.$filename.'"'.$eol;
+            $body.='Content-Type: '.$mime.$eol.$eol;
+            $body.=$bytes.$eol;
+        }
+        $body.='--'.$boundary.'--'.$eol;
+        return [$body,$boundary];
     }
 
     private function saveGeneratedImage(int $userId,int $generationId,string $bytes): string
