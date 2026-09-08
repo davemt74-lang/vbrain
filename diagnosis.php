@@ -8,6 +8,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $answers = json_decode((string)($_POST['answers_json'] ?? '[]'), true, 512, JSON_THROW_ON_ERROR);
         $result = $service->calculate(is_array($answers) ? $answers : []);
         $_SESSION['diagnosis_result'] = $result;
+        if ($userId=auth_user_id()) {
+            $result['result_id']=(new DiagnosisPersistenceService(db()))->record($userId,$result);
+            $_SESSION['diagnosis_result']=$result;
+        }
         redirect('diagnosis-result.php');
     } catch (Throwable $e) {
         $error = $e instanceof InvalidArgumentException ? $e->getMessage() : 'We could not calculate your diagnosis. Please try again.';
