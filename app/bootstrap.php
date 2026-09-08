@@ -38,6 +38,8 @@ require_once __DIR__ . '/Services/CheckinService.php';
 require_once __DIR__ . '/Services/SubstitutionService.php';
 require_once __DIR__ . '/Services/ContentFactoryService.php';
 require_once __DIR__ . '/Services/AiProviderService.php';
+require_once __DIR__ . '/Services/DestinationPromptService.php';
+require_once __DIR__ . '/Services/DestinationAiService.php';
 require_once __DIR__ . '/Services/DestinationResearchService.php';
 require_once __DIR__ . '/Services/FunContentService.php';
 require_once __DIR__ . '/Services/VacationBreakService.php';
