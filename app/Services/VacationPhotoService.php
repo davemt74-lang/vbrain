@@ -113,14 +113,26 @@ final class VacationPhotoService
         $estimatedCost=(float)$costBasis['estimate_usd'];
         $costBasisJson=json_encode($costBasis,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 
-        if(db_column_exists('vacation_photo_generations','estimated_cost_usd')){
-            $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,estimated_cost_usd,cost_basis_json,source_refs_json,prompt_profile_hash,user_profile_snapshot_json,destination_prompt_snapshot_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"pending")');
-            $stmt->execute([$userId,$destinationId?:null,$destination,$scene?:null,$vibe,$overTheTop,$size,$quality,'openai',$model,$estimatedCost,$costBasisJson,json_encode($refs,JSON_UNESCAPED_SLASHES),$profile['hash'],$profileJson,$destinationJson,$prompt]);
-        }else{
-            $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,source_refs_json,prompt_profile_hash,user_profile_snapshot_json,destination_prompt_snapshot_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"pending")');
-            $stmt->execute([$userId,$destinationId?:null,$destination,$scene?:null,$vibe,$overTheTop,$size,$quality,'openai',$model,json_encode($refs,JSON_UNESCAPED_SLASHES),$profile['hash'],$profileJson,$destinationJson,$prompt]);
+        $startedTransaction=false;$generationId=0;
+        try{
+            if(!$this->pdo->inTransaction()){$this->pdo->beginTransaction();$startedTransaction=true;}
+            $lock=$this->pdo->prepare('SELECT id FROM users WHERE id=? FOR UPDATE');$lock->execute([$userId]);
+            if(!$lock->fetchColumn())throw new RuntimeException('Vacation Brain user not found.');
+            $policy->assertCanGenerate($userId);
+
+            if(db_column_exists('vacation_photo_generations','estimated_cost_usd')){
+                $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,estimated_cost_usd,cost_basis_json,source_refs_json,prompt_profile_hash,user_profile_snapshot_json,destination_prompt_snapshot_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"pending")');
+                $stmt->execute([$userId,$destinationId?:null,$destination,$scene?:null,$vibe,$overTheTop,$size,$quality,'openai',$model,$estimatedCost,$costBasisJson,json_encode($refs,JSON_UNESCAPED_SLASHES),$profile['hash'],$profileJson,$destinationJson,$prompt]);
+            }else{
+                $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,source_refs_json,prompt_profile_hash,user_profile_snapshot_json,destination_prompt_snapshot_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"pending")');
+                $stmt->execute([$userId,$destinationId?:null,$destination,$scene?:null,$vibe,$overTheTop,$size,$quality,'openai',$model,json_encode($refs,JSON_UNESCAPED_SLASHES),$profile['hash'],$profileJson,$destinationJson,$prompt]);
+            }
+            $generationId=(int)$this->pdo->lastInsertId();
+            if($startedTransaction)$this->pdo->commit();
+        }catch(Throwable $e){
+            if($startedTransaction&&$this->pdo->inTransaction())$this->pdo->rollBack();
+            throw $e;
         }
-        $generationId=(int)$this->pdo->lastInsertId();
 
         try{
             $paths=[];foreach($selected as $row){$path=$this->localPath((string)$row['url']);if($path)$paths[]=$path;}
