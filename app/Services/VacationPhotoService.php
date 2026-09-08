@@ -65,14 +65,16 @@ final class VacationPhotoService
     public function history(int $userId, int $limit=30): array
     {
         $limit=max(1,min(100,$limit));
-        $stmt=$this->pdo->prepare('SELECT id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,status,image_url,error_message,created_at,completed_at FROM vacation_photo_generations WHERE user_id=? ORDER BY id DESC LIMIT '.$limit);
+        $costColumn=db_column_exists('vacation_photo_generations','estimated_cost_usd')?',estimated_cost_usd':'';
+        $stmt=$this->pdo->prepare('SELECT id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name'.$costColumn.',status,image_url,error_message,created_at,completed_at FROM vacation_photo_generations WHERE user_id=? ORDER BY id DESC LIMIT '.$limit);
         $stmt->execute([$userId]);
         return $stmt->fetchAll() ?: [];
     }
 
     public function generate(int $userId, array $input): array
     {
-        if(!site_setting_bool('vacation_photos.enabled',true)) throw new RuntimeException('Vacation Yourself is currently disabled.');
+        $policy=new VacationPhotoPolicyService($this->pdo);
+        $policy->assertCanGenerate($userId);
         $pref=$this->preference($userId);
         if(empty($pref['ai_photo_consent'])) throw new InvalidArgumentException('Turn on AI photo consent before generating a Vacation Yourself image.');
 
@@ -107,9 +109,17 @@ final class VacationPhotoService
         $refs=array_map(fn($r)=>['key'=>$r['key'],'url'=>$r['url'],'source'=>$r['source']],array_values($selected));
         $profileJson=json_encode($profile['profile'],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
         $destinationJson=$destinationProfile?json_encode($destinationProfile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR):null;
+        $costBasis=$policy->estimateBasis($quality,$size,count($selected));
+        $estimatedCost=(float)$costBasis['estimate_usd'];
+        $costBasisJson=json_encode($costBasis,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 
-        $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,source_refs_json,prompt_profile_hash,user_profile_snapshot_json,destination_prompt_snapshot_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"pending")');
-        $stmt->execute([$userId,$destinationId?:null,$destination,$scene?:null,$vibe,$overTheTop,$size,$quality,'openai',$model,json_encode($refs,JSON_UNESCAPED_SLASHES),$profile['hash'],$profileJson,$destinationJson,$prompt]);
+        if(db_column_exists('vacation_photo_generations','estimated_cost_usd')){
+            $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,estimated_cost_usd,cost_basis_json,source_refs_json,prompt_profile_hash,user_profile_snapshot_json,destination_prompt_snapshot_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"pending")');
+            $stmt->execute([$userId,$destinationId?:null,$destination,$scene?:null,$vibe,$overTheTop,$size,$quality,'openai',$model,$estimatedCost,$costBasisJson,json_encode($refs,JSON_UNESCAPED_SLASHES),$profile['hash'],$profileJson,$destinationJson,$prompt]);
+        }else{
+            $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination_catalog_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,source_refs_json,prompt_profile_hash,user_profile_snapshot_json,destination_prompt_snapshot_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"pending")');
+            $stmt->execute([$userId,$destinationId?:null,$destination,$scene?:null,$vibe,$overTheTop,$size,$quality,'openai',$model,json_encode($refs,JSON_UNESCAPED_SLASHES),$profile['hash'],$profileJson,$destinationJson,$prompt]);
+        }
         $generationId=(int)$this->pdo->lastInsertId();
 
         try{
@@ -118,7 +128,7 @@ final class VacationPhotoService
             $result=$this->callOpenAi($userId,(string)$provider['api_key'],$model,$prompt,$paths,$size,$quality);
             $imageUrl=$this->saveGeneratedImage($userId,$generationId,$result['bytes']);
             $this->pdo->prepare('UPDATE vacation_photo_generations SET status="completed",image_url=?,api_request_id=?,completed_at=NOW() WHERE id=? AND user_id=?')->execute([$imageUrl,$result['request_id']?:null,$generationId,$userId]);
-            return ['id'=>$generationId,'image_url'=>$imageUrl,'destination'=>$destination,'destination_id'=>$destinationId,'vibe'=>$vibe,'over_the_top_strength'=>$overTheTop];
+            return ['id'=>$generationId,'image_url'=>$imageUrl,'destination'=>$destination,'destination_id'=>$destinationId,'vibe'=>$vibe,'over_the_top_strength'=>$overTheTop,'estimated_cost_usd'=>$estimatedCost];
         }catch(Throwable $e){
             $message=$this->cleanText($e->getMessage(),1000);
             $this->pdo->prepare('UPDATE vacation_photo_generations SET status="failed",error_message=?,completed_at=NOW() WHERE id=? AND user_id=?')->execute([$message,$generationId,$userId]);
