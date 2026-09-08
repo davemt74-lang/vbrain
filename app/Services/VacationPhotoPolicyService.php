@@ -27,14 +27,15 @@ final class VacationPhotoPolicyService
     public function usage(int $userId): array
     {
         if(!db_table_exists('vacation_photo_generations'))return ['today'=>0,'month'=>0,'lifetime'=>0,'completed'=>0,'failed'=>0,'pending'=>0];
+        $activeReservation='(status="completed" OR (status="pending" AND created_at>=DATE_SUB(NOW(),INTERVAL 30 MINUTE)))';
         $stmt=$this->pdo->prepare(
             'SELECT
-                SUM(status IN ("pending","completed") AND created_at>=CURDATE()) today_count,
-                SUM(status IN ("pending","completed") AND created_at>=DATE_FORMAT(CURDATE(),"%Y-%m-01")) month_count,
-                SUM(status IN ("pending","completed")) lifetime_count,
+                SUM('.$activeReservation.' AND created_at>=CURDATE()) today_count,
+                SUM('.$activeReservation.' AND created_at>=DATE_FORMAT(CURDATE(),"%Y-%m-01")) month_count,
+                SUM('.$activeReservation.') lifetime_count,
                 SUM(status="completed") completed_count,
                 SUM(status="failed") failed_count,
-                SUM(status="pending") pending_count
+                SUM(status="pending" AND created_at>=DATE_SUB(NOW(),INTERVAL 30 MINUTE)) pending_count
              FROM vacation_photo_generations
              WHERE user_id=?'
         );
@@ -102,7 +103,7 @@ final class VacationPhotoPolicyService
             'size'=>$size,
             'shape'=>$shape,
             'reference_count'=>$referenceCount,
-            'base_estimate'=>(float)site_setting('vacation_photos.estimate.'.$quality.'.'.$shape,'0'),
+            'base_estimate'=>$this->estimate($quality,$size,0),
             'reference_estimate_each'=>(float)site_setting('vacation_photos.estimate.reference_image','0.0100'),
             'estimate_usd'=>$this->estimate($quality,$size,$referenceCount),
             'label'=>(string)site_setting('vacation_photos.estimate.label','Planning estimate — editable by Admin'),
