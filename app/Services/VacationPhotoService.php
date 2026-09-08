@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class VacationPhotoService
 {
-    private const ALLOWED_VIBES = ['realistic','luxury','adventure','relaxed','funny'];
+    private const ALLOWED_VIBES = ['realistic','luxury','adventure','relaxed','funny','touristy'];
     private const ALLOWED_QUALITY = ['low','medium','high'];
     private const ALLOWED_SIZE = ['1024x1024','1536x1024','1024x1536'];
 
@@ -65,7 +65,7 @@ final class VacationPhotoService
     public function history(int $userId, int $limit=30): array
     {
         $limit=max(1,min(100,$limit));
-        $stmt=$this->pdo->prepare('SELECT id,destination,scene,vibe,size,quality,provider,model_name,status,image_url,error_message,created_at,completed_at FROM vacation_photo_generations WHERE user_id=? ORDER BY id DESC LIMIT '.$limit);
+        $stmt=$this->pdo->prepare('SELECT id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,status,image_url,error_message,created_at,completed_at FROM vacation_photo_generations WHERE user_id=? ORDER BY id DESC LIMIT '.$limit);
         $stmt->execute([$userId]);
         return $stmt->fetchAll() ?: [];
     }
@@ -81,6 +81,7 @@ final class VacationPhotoService
         $vibe=(string)($input['vibe']??'realistic');if(!in_array($vibe,self::ALLOWED_VIBES,true))$vibe='realistic';
         $quality=(string)($input['quality']??site_setting('vacation_photos.default_quality','medium'));if(!in_array($quality,self::ALLOWED_QUALITY,true))$quality='medium';
         $size=(string)($input['size']??'1024x1024');if(!in_array($size,self::ALLOWED_SIZE,true))$size='1024x1024';
+        $overTheTop=max(0,min(100,(int)($input['over_the_top_strength']??site_setting('vacation_photos.default_over_the_top','35'))));
         if($destination==='') throw new InvalidArgumentException('Enter a destination first.');
 
         $candidates=$this->referenceCandidates($userId);$byKey=[];foreach($candidates as $candidate)$byKey[$candidate['key']]=$candidate;
@@ -93,11 +94,13 @@ final class VacationPhotoService
         $provider=(new AiProviderService($this->pdo))->get('openai',true);
         if(!$provider || empty($provider['enabled']) || empty($provider['api_key'])) throw new RuntimeException('Vacation Yourself needs an enabled OpenAI API key in Admin → AI / API Keys.');
         $model=trim((string)site_setting('vacation_photos.model','gpt-image-2')) ?: 'gpt-image-2';
-        $prompt=$this->buildPrompt($destination,$scene,$vibe,count($selected));
+        $profile=(new VacationImageProfileService($this->pdo))->build($userId);
+        $prompt=$this->buildPrompt($destination,$scene,$vibe,$overTheTop,count($selected),(string)$profile['prompt']);
         $refs=array_map(fn($r)=>['key'=>$r['key'],'url'=>$r['url'],'source'=>$r['source']],array_values($selected));
+        $profileJson=json_encode($profile['profile'],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 
-        $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination,scene,vibe,size,quality,provider,model_name,source_refs_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,"pending")');
-        $stmt->execute([$userId,$destination,$scene?:null,$vibe,$size,$quality,'openai',$model,json_encode($refs,JSON_UNESCAPED_SLASHES),$prompt]);
+        $stmt=$this->pdo->prepare('INSERT INTO vacation_photo_generations (user_id,destination,scene,vibe,over_the_top_strength,size,quality,provider,model_name,source_refs_json,prompt_profile_hash,user_profile_snapshot_json,prompt_text,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,"pending")');
+        $stmt->execute([$userId,$destination,$scene?:null,$vibe,$overTheTop,$size,$quality,'openai',$model,json_encode($refs,JSON_UNESCAPED_SLASHES),$profile['hash'],$profileJson,$prompt]);
         $generationId=(int)$this->pdo->lastInsertId();
 
         try{
@@ -106,7 +109,7 @@ final class VacationPhotoService
             $result=$this->callOpenAi($userId,(string)$provider['api_key'],$model,$prompt,$paths,$size,$quality);
             $imageUrl=$this->saveGeneratedImage($userId,$generationId,$result['bytes']);
             $this->pdo->prepare('UPDATE vacation_photo_generations SET status="completed",image_url=?,api_request_id=?,completed_at=NOW() WHERE id=? AND user_id=?')->execute([$imageUrl,$result['request_id']?:null,$generationId,$userId]);
-            return ['id'=>$generationId,'image_url'=>$imageUrl,'destination'=>$destination,'vibe'=>$vibe];
+            return ['id'=>$generationId,'image_url'=>$imageUrl,'destination'=>$destination,'vibe'=>$vibe,'over_the_top_strength'=>$overTheTop];
         }catch(Throwable $e){
             $message=$this->cleanText($e->getMessage(),1000);
             $this->pdo->prepare('UPDATE vacation_photo_generations SET status="failed",error_message=?,completed_at=NOW() WHERE id=? AND user_id=?')->execute([$message,$generationId,$userId]);
@@ -189,11 +192,38 @@ final class VacationPhotoService
         return $real;
     }
 
-    private function buildPrompt(string $destination,string $scene,string $vibe,int $referenceCount): string
+    private function buildPrompt(string $destination,string $scene,string $vibe,int $overTheTop,int $referenceCount,string $profilePrompt): string
     {
-        $vibes=['realistic'=>'natural candid travel photography','luxury'=>'polished luxury travel editorial photography','adventure'=>'energetic outdoor adventure photography','relaxed'=>'warm relaxed vacation photography','funny'=>'photorealistic but playful vacation comedy'];
-        $sceneText=$scene!==''?' Requested scene: '.$scene.'.':'';
-        return 'Create a fictional vacation photograph of the same adult shown in the '.$referenceCount.' supplied reference image(s). Preserve recognizable facial identity, approximate age, skin tone, hair, and body proportions from the references without beautifying them into a different person. Place the person naturally in '.$destination.'. Style: '.$vibes[$vibe].'.'.$sceneText.' Make the setting geographically plausible, with believable lighting, camera perspective, hands, clothing, and background. Do not add text, logos, watermarks, extra people unless the scene naturally requires background crowds, or imply that this photograph documents a real trip. This is an entertainment image representing an imagined vacation.';
+        $vibes=[
+            'realistic'=>'natural candid travel photography',
+            'luxury'=>'polished luxury travel editorial photography',
+            'adventure'=>'energetic outdoor adventure photography',
+            'relaxed'=>'warm relaxed vacation photography',
+            'funny'=>'photorealistic but playful vacation comedy',
+            'touristy'=>'enthusiastic, unmistakably tourist-on-vacation photography with destination-specific props and activities',
+        ];
+        $sceneText=$scene!==''?'Requested scene: '.$scene.'.':'Choose a scene that best fits the destination and the user preference profile.';
+        $profilePrompt=$this->cleanText($profilePrompt,14000);
+        return implode("\n\n",[
+            'Create a fictional vacation photograph of the same adult shown in the '.$referenceCount.' supplied reference image(s). The reference photos are authoritative for physical identity. Preserve recognizable facial identity, approximate age, skin tone, hair, body proportions, and distinguishing appearance. Do not beautify, slim, age, de-age, or otherwise transform the person into someone else.',
+            'Destination: '.$destination.'. Style: '.$vibes[$vibe].'. '.$sceneText,
+            $profilePrompt,
+            $this->overTheTopInstruction($overTheTop),
+            'Translate the Vacation Brain profile into visible vacation choices: setting, activity, time of day, pace, comfort level, food/drink context, props, clothing context, and tourist behavior. Prefer explicit user answers and recent choices over generic assumptions. Keep the location geographically plausible. Make lighting, hands, camera perspective, clothing, and background believable even when the concept is exaggerated.',
+            'Do not add text, logos, watermarks, or unrelated foreground people. Do not imply this photograph documents a real trip. This is an AI-generated entertainment image representing an imagined vacation.',
+        ]);
+    }
+
+    private function overTheTopInstruction(int $strength): string
+    {
+        $strength=max(0,min(100,$strength));
+        if($strength<=10)$direction='Keep the production completely natural, subtle, plausible, and candid. Avoid conspicuous tourist props or luxury exaggeration.';
+        elseif($strength<=30)$direction='Add a lightly polished vacation feel: one or two recognizable tourist details, flattering travel atmosphere, and modest aspirational touches.';
+        elseif($strength<=50)$direction='Make the vacation fantasy clearly noticeable: stronger destination cues, fun tourist props, better-than-normal scenery, and a little social-media vacation energy.';
+        elseif($strength<=70)$direction='Push the vacation fantasy substantially: dramatic destination scenery, unmistakable tourist behavior, premium details, playful excess, and a scene that feels enviably over-produced while remaining photorealistic.';
+        elseif($strength<=90)$direction='Make it extravagantly touristy and knowingly excessive: iconic destination cues, dramatic views, upgraded experiences, oversized vacation energy, conspicuous props, and comedic luxury or adventure appropriate to the user profile.';
+        else $direction='Take the vacation fantasy to maximum believable absurdity: spectacular destination staging, comically excessive tourist energy, outrageous-but-photorealistic luxury/adventure details, and a visual punchline that still looks like a real camera captured the same person.';
+        return 'OVER THE TOP STRENGTH: '.$strength.'/100. '.$direction.' The strength controls only the vacation scene and production value; never exaggerate or distort the person’s identity, face, body, age, skin tone, or other physical traits.';
     }
 
     private function cleanText(string $value,int $max): string
