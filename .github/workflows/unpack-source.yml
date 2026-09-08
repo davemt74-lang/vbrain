@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   unpack:
-    if: ${{ hashFiles('package/vacation-brain-v1.zip') != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -22,11 +21,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test -f package/vacation-brain-v1.zip
           rm -rf .bootstrap-vbrain
           mkdir .bootstrap-vbrain
           unzip -q package/vacation-brain-v1.zip -d .bootstrap-vbrain
           test -d .bootstrap-vbrain/vacation-brain-v1
-          rsync -a --delete-excluded --exclude='.git/' --exclude='.github/' .bootstrap-vbrain/vacation-brain-v1/ ./
+          rsync -a --exclude='.git/' --exclude='.github/' .bootstrap-vbrain/vacation-brain-v1/ ./
           rm -rf .bootstrap-vbrain package
           rm -f .github/workflows/unpack-source.yml
           rmdir .github/workflows 2>/dev/null || true
@@ -39,9 +39,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then
-            echo "No source changes to commit."
-            exit 0
-          fi
           git commit -m "Add Vacation Brain v1.11 application source"
           git push origin HEAD:build/vacation-brain-v1-11
