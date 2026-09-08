@@ -17,6 +17,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up PHP
+        shell: bash
+        run: |
+          true
+
+      - name: Set up PHP runtime
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
@@ -36,6 +41,6 @@ jobs:
         run: |
           set -euo pipefail
           test -f db/001_schema.sql
-          test -f db/026_destination_prompt_ai_builder.sql
+          test -f db/027_vacation_photo_gallery_actions.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 26
+          test "$COUNT" -eq 27
