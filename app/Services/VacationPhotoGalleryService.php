@@ -68,7 +68,9 @@ final class VacationPhotoGalleryService
         if(!preg_match('/^[a-f0-9]{40}$/',$token))return null;
         $stmt=$this->pdo->prepare('SELECT id,destination,scene,vibe,over_the_top_strength,image_url,origin,user_profile_snapshot_json,created_at FROM vacation_photo_generations WHERE share_token=? AND share_enabled=1 AND status="completed" AND image_url IS NOT NULL AND deleted_at IS NULL LIMIT 1');
         $stmt->execute([$token]);$row=$stmt->fetch();if(!$row)return null;
-        return array_merge($row,$this->sharePresentation($row));
+        $presentation=$this->sharePresentation($row);
+        unset($row['user_profile_snapshot_json']);
+        return array_merge($row,$presentation);
     }
 
     public function setDreamCover(int $userId,int $generationId,int $dreamTripId): void
