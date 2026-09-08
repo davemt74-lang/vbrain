@@ -49,7 +49,8 @@ function nav_active(array $files): string { global $current; return in_array($cu
       <span class="sidebar-section-label">Admin</span>
       <a class="<?=nav_active(['index.php'])?>" href="<?=e(app_url('admin/index.php'))?>"><span>⌂</span>Overview</a>
       <a class="<?=nav_active(['users.php'])?>" href="<?=e(app_url('admin/users.php'))?>"><span>◎</span>Users</a>
-      <a class="<?=nav_active(['destinations.php'])?>" href="<?=e(app_url('admin/destinations.php'))?>"><span>⌖</span>Destinations</a>
+      <a class="<?=nav_active(['destinations.php','destination-prompts.php'])?>" href="<?=e(app_url('admin/destinations.php'))?>"><span>⌖</span>Destinations</a>
+      <a class="<?=nav_active(['destination-ai-create.php'])?>" href="<?=e(app_url('admin/destination-ai-create.php'))?>"><span>✦</span>AI Create Destination</a>
       <a class="<?=nav_active(['destination-reports.php'])?>" href="<?=e(app_url('admin/destination-reports.php'))?>"><span>◫</span>Destination Research</a>
       <a class="<?=nav_active(['shop.php'])?>" href="<?=e(app_url('admin/shop.php'))?>"><span>▣</span>Merch / Shopping</a>
       <a class="<?=nav_active(['sample-data.php'])?>" href="<?=e(app_url('admin/sample-data.php'))?>"><span>◉</span>Sample Data</a>
