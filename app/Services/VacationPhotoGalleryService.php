@@ -65,7 +65,12 @@ final class VacationPhotoGalleryService
     public function publicShared(string $token): ?array
     {
         if(!site_setting_bool('vacation_photos.sharing_enabled',true))return null;
-        if(!preg_match('/^[a-f0-9]{40}$/',$token))return null;$stmt=$this->pdo->prepare('SELECT id,destination,scene,vibe,over_the_top_strength,image_url,created_at FROM vacation_photo_generations WHERE share_token=? AND share_enabled=1 AND status="completed" AND image_url IS NOT NULL AND deleted_at IS NULL LIMIT 1');$stmt->execute([$token]);return $stmt->fetch()?:null;
+        if(!preg_match('/^[a-f0-9]{40}$/',$token))return null;
+        $stmt=$this->pdo->prepare('SELECT id,destination,scene,vibe,over_the_top_strength,image_url,origin,user_profile_snapshot_json,created_at FROM vacation_photo_generations WHERE share_token=? AND share_enabled=1 AND status="completed" AND image_url IS NOT NULL AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute([$token]);$row=$stmt->fetch();if(!$row)return null;
+        $presentation=$this->sharePresentation($row);
+        unset($row['user_profile_snapshot_json']);
+        return array_merge($row,$presentation);
     }
 
     public function setDreamCover(int $userId,int $generationId,int $dreamTripId): void
@@ -80,8 +85,42 @@ final class VacationPhotoGalleryService
     {
         $row=$this->item($userId,$id);if(!$row)throw new RuntimeException('Vacation photo not found.');$refs=json_decode((string)($row['source_refs_json']??'[]'),true)?:[];$keys=[];foreach($refs as $ref){if(!empty($ref['key']))$keys[]=(string)$ref['key'];}
         $input=[
-            'destination_id'=>(int)($row['destination_catalog_id']??0),'destination'=>(string)$row['destination'],'scene'=>(string)($overrides['scene']??$row['scene']??''),'vibe'=>(string)($overrides['vibe']??$row['vibe']??'realistic'),'over_the_top_strength'=>(int)($overrides['over_the_top_strength']??$row['over_the_top_strength']??35),'size'=>(string)($overrides['size']??$row['size']??'1024x1024'),'quality'=>(string)($overrides['quality']??$row['quality']??'medium'),'reference_keys'=>$keys,
+            'destination_id'=>(int)($row['destination_catalog_id']??0),
+            'destination'=>(string)$row['destination'],
+            'scene'=>(string)($overrides['scene']??$row['scene']??''),
+            'vibe'=>(string)($overrides['vibe']??$row['vibe']??'realistic'),
+            'over_the_top_strength'=>(int)($overrides['over_the_top_strength']??$row['over_the_top_strength']??35),
+            'size'=>(string)($overrides['size']??$row['size']??'1024x1024'),
+            'quality'=>(string)($overrides['quality']??$row['quality']??'medium'),
+            'reference_keys'=>$keys,
         ];
         $created=(new VacationPhotoService($this->pdo,$this->rootDir))->generate($userId,$input);$this->setOrigin($userId,(int)$created['id'],'gallery_regenerate',$id);return $created;
+    }
+
+    private function sharePresentation(array $row): array
+    {
+        $snapshot=json_decode((string)($row['user_profile_snapshot_json']??''),true);$snapshot=is_array($snapshot)?$snapshot:[];
+        $diagnosis=$snapshot['diagnosis']??[];$vacationBrain=$snapshot['vacation_brain']??[];
+        $diagnosisTitle=$this->shareText((string)($diagnosis['title']??''),180);
+        $archetype=$this->shareText((string)($vacationBrain['archetype']??''),160);
+        $destination=$this->shareText((string)($row['destination']??''),180)?:'somewhere else';
+        $diagnosisHeadline=$diagnosisTitle!==''?'Vacation Brain diagnosed me with '.$diagnosisTitle.'.':'Vacation Brain diagnosed me with a serious need for '.$destination.'.';
+        $postcardHeadline='Wish I were here.';
+        $postcardSubhead='Vacation Brain prescribed '.$destination.'.';
+        $shareText=$diagnosisHeadline.' '.$postcardSubhead;
+        return [
+            'diagnosis_title'=>$diagnosisTitle,
+            'archetype'=>$archetype,
+            'diagnosis_headline'=>$diagnosisHeadline,
+            'postcard_headline'=>$postcardHeadline,
+            'postcard_subhead'=>$postcardSubhead,
+            'share_text'=>$shareText,
+        ];
+    }
+
+    private function shareText(string $value,int $max): string
+    {
+        $value=trim(preg_replace('/\s+/u',' ',$value)??$value);
+        return function_exists('mb_substr')?mb_substr($value,0,$max):substr($value,0,$max);
     }
 }

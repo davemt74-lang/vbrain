@@ -11,6 +11,11 @@ $pwaEnabled = site_setting_bool('pwa.enabled');
 $pwaTheme = site_setting('pwa.theme_color','#ffffff') ?: '#ffffff';
 $pwaIcon = site_setting('pwa.icon_url','') ?: '';
 $pwaSplash = site_setting('pwa.splash_url','') ?: '';
+$metaDescription = $metaDescription ?? 'Vacation Brain — find out how badly you need a vacation, build your vacation profile, and turn daydreaming into your next trip.';
+$ogTitle = $ogTitle ?? $title;
+$ogDescription = $ogDescription ?? $metaDescription;
+$ogImage = trim((string)($ogImage ?? ''));
+$canonicalUrl = trim((string)($canonicalUrl ?? ''));
 if ($user) {
     try { $matchUnread = (new TravelMessageService(db()))->unreadCount((int)$user['id']); } catch (Throwable $e) { $matchUnread = 0; }
     try { $notificationUnread = (new NotificationService(db()))->unreadCount((int)$user['id']); } catch (Throwable $e) { $notificationUnread = 0; }
@@ -23,7 +28,16 @@ function nav_active(array $files): string { global $current; return in_array($cu
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?></title>
-<meta name="description" content="Vacation Brain — find out how badly you need a vacation, build your vacation profile, and turn daydreaming into your next trip.">
+<meta name="description" content="<?=e($metaDescription)?>">
+<meta property="og:title" content="<?=e($ogTitle)?>">
+<meta property="og:description" content="<?=e($ogDescription)?>">
+<meta property="og:type" content="website">
+<?php if($ogImage):?><meta property="og:image" content="<?=e($ogImage)?>"><?php endif;?>
+<?php if($canonicalUrl):?><meta property="og:url" content="<?=e($canonicalUrl)?>"><link rel="canonical" href="<?=e($canonicalUrl)?>"><?php endif;?>
+<meta name="twitter:card" content="<?=$ogImage?'summary_large_image':'summary'?>">
+<meta name="twitter:title" content="<?=e($ogTitle)?>">
+<meta name="twitter:description" content="<?=e($ogDescription)?>">
+<?php if($ogImage):?><meta name="twitter:image" content="<?=e($ogImage)?>"><?php endif;?>
 <meta name="theme-color" content="<?=e($pwaTheme)?>">
 <?php if($pwaEnabled): ?><link rel="manifest" href="<?=e(app_url('pwa-manifest.php'))?>"><?php if($pwaIcon):?><link rel="apple-touch-icon" href="<?=e($pwaIcon)?>"><?php endif;?><?php if($pwaSplash):?><link rel="apple-touch-startup-image" href="<?=e($pwaSplash)?>"><?php endif;?><?php endif;?>
 <link rel="stylesheet" href="<?= e(app_url('assets/app.css')) ?>">
