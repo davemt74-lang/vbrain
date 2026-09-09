@@ -45,6 +45,7 @@ require __DIR__ . '/partials/header.php';
         <li>About two minutes</li>
         <li>Medically useless</li>
       </ul>
+      <p class="microcopy"><?=e(diagnosis_disclaimer())?></p>
     </div>
 
     <div class="landing-diagnosis-stage" aria-label="Sample Vacation Brain diagnosis">
