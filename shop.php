@@ -55,7 +55,7 @@ require __DIR__.'/partials/header.php';
     <?php foreach ($rows as $product): ?>
       <article class="shop-card">
         <a class="shop-media" href="<?=e(app_url('shop-product.php?slug='.urlencode($product['slug'])))?>">
-          <?php if ($product['image_url']): ?><img src="<?=e($product['image_url'])?>" alt="<?=e($product['name'])?>"><?php else: ?><span><?=e(strtoupper($product['product_type']))?></span><?php endif; ?>
+          <?php if ($product['image_url']): ?><img src="<?=e(media_url((string)$product['image_url']))?>" alt="<?=e($product['name'])?>"><?php else: ?><span><?=e(strtoupper($product['product_type']))?></span><?php endif; ?>
         </a>
         <div class="shop-body">
           <div class="shop-card-meta"><div class="eyebrow"><?=e($product['product_type'])?></div><?php if (!empty($product['is_sample'])): ?><span class="sample-badge">Sample</span><?php endif; ?></div>
