@@ -13,6 +13,28 @@ function app_url(string $path = ''): string
     return $base . '/' . ltrim($path, '/');
 }
 
+function media_url(?string $value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') return '';
+    if (preg_match('#^(?:https?:)?//#i', $value) || str_starts_with($value, 'data:') || str_starts_with($value, 'blob:')) {
+        return $value;
+    }
+    return app_url(ltrim($value, '/'));
+}
+
+function local_media_exists(?string $value, ?string $root = null): bool
+{
+    $value = trim((string)$value);
+    if ($value === '') return false;
+    if (preg_match('#^(?:https?:)?//#i', $value) || str_starts_with($value, 'data:') || str_starts_with($value, 'blob:')) {
+        return true;
+    }
+    $root = $root ?: dirname(__DIR__);
+    $relative = ltrim(parse_url($value, PHP_URL_PATH) ?: $value, '/');
+    return $relative !== '' && is_file(rtrim($root, "/\\") . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative));
+}
+
 function redirect(string $path): never
 {
     header('Location: ' . app_url($path));

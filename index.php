@@ -83,7 +83,7 @@ require __DIR__ . '/partials/header.php';
         <article class="landing-product">
           <a class="landing-product-media" href="<?=e(app_url('shop-product.php?slug='.urlencode((string)$product['slug'])))?>">
             <?php if (!empty($product['image_url'])): ?>
-              <img src="<?=e((string)$product['image_url'])?>" alt="<?=e((string)$product['name'])?>">
+              <img src="<?=e(media_url((string)$product['image_url']))?>" alt="<?=e((string)$product['name'])?>">
             <?php endif; ?>
             <?php if (!empty($product['secondary_image_url'])): ?><span class="landing-product-badge">Front + Back</span><?php endif; ?>
           </a>
