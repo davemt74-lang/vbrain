@@ -16,6 +16,7 @@ $ogTitle = $ogTitle ?? $title;
 $ogDescription = $ogDescription ?? $metaDescription;
 $ogImage = trim((string)($ogImage ?? ''));
 $canonicalUrl = trim((string)($canonicalUrl ?? ''));
+$pageStyles = is_array($pageStyles ?? null) ? $pageStyles : [];
 if ($user) {
     try { $matchUnread = (new TravelMessageService(db()))->unreadCount((int)$user['id']); } catch (Throwable $e) { $matchUnread = 0; }
     try { $notificationUnread = (new NotificationService(db()))->unreadCount((int)$user['id']); } catch (Throwable $e) { $notificationUnread = 0; }
@@ -41,6 +42,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
 <meta name="theme-color" content="<?=e($pwaTheme)?>">
 <?php if($pwaEnabled): ?><link rel="manifest" href="<?=e(app_url('pwa-manifest.php'))?>"><?php if($pwaIcon):?><link rel="apple-touch-icon" href="<?=e($pwaIcon)?>"><?php endif;?><?php if($pwaSplash):?><link rel="apple-touch-startup-image" href="<?=e($pwaSplash)?>"><?php endif;?><?php endif;?>
 <link rel="stylesheet" href="<?= e(app_url('assets/app.css')) ?>">
+<?php foreach ($pageStyles as $pageStyle): $pageStyle = trim((string)$pageStyle); if ($pageStyle === '') continue; ?><link rel="stylesheet" href="<?=e(app_url($pageStyle))?>"><?php endforeach; ?>
 </head>
 <body data-page="<?= e($current) ?>" class="<?= $user?'logged-in':'' ?> <?= $inAdmin?'admin-mode':'' ?>">
 <div class="travel-match-entry-loader" data-travel-match-entry-loader aria-hidden="true">
@@ -116,5 +118,5 @@ function nav_active(array $files): string { global $current; return in_array($cu
 </aside>
 <main class="app-main">
 <?php else: ?>
-<header class="site-header"><div class="shell nav-shell"><a class="brand" href="<?=e(app_url('index.php'))?>"><?php if($siteLogo):?><img class="brand-logo-image" src="<?=e($siteLogo)?>" alt="<?=e($siteName)?>"><?php else:?><span class="brand-mark">◒</span><span><?=e($siteName)?></span><?php endif;?></a><nav class="nav-actions" aria-label="Primary"><a href="<?=e(app_url('diagnosis.php'))?>">Self-Diagnosis</a><a href="<?=e(app_url('professional-assessment.php'))?>">Professional Assessment</a><a class="text-button" href="<?=e(app_url('login.php'))?>">Log in</a></nav></div></header><main>
+<header class="site-header"><div class="shell nav-shell"><a class="brand" href="<?=e(app_url('index.php'))?>"><?php if($siteLogo):?><img class="brand-logo-image" src="<?=e($siteLogo)?>" alt="<?=e($siteName)?>"><?php else:?><span class="brand-mark">◒</span><span><?=e($siteName)?></span><?php endif;?></a><nav class="nav-actions" aria-label="Primary"><a href="<?=e(app_url('diagnosis.php'))?>">Self-Diagnosis</a><a href="<?=e(app_url('professional-assessment.php'))?>">Professional Assessment</a><a href="<?=e(app_url('shop.php'))?>">Shop</a><a class="text-button" href="<?=e(app_url('login.php'))?>">Log in</a></nav></div></header><main>
 <?php endif; ?>
