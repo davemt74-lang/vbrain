@@ -19,7 +19,7 @@ final class VacationPhotoGalleryService
     public function gallery(int $userId,array $filters=[]): array
     {
         if(!site_setting_bool('vacation_photos.gallery_enabled',true))return [];
-        $sql='SELECT g.*,d.name AS catalog_destination_name,dt.name AS dream_trip_name FROM vacation_photo_generations g LEFT JOIN destination_catalog d ON d.id=g.destination_catalog_id LEFT JOIN dream_trips dt ON dt.id=g.dream_trip_id WHERE g.user_id=? AND g.status="completed" AND g.image_url IS NOT NULL AND g.deleted_at IS NULL';$args=[$userId];
+        $sql="SELECT g.*,d.name AS catalog_destination_name,dt.name AS dream_trip_name FROM vacation_photo_generations g LEFT JOIN destination_catalog d ON d.id=g.destination_catalog_id LEFT JOIN dream_trips dt ON dt.id=g.dream_trip_id WHERE g.user_id=? AND g.status='completed' AND g.image_url IS NOT NULL AND g.deleted_at IS NULL";$args=[$userId];
         if(empty($filters['archived']))$sql.=' AND g.archived=0';else $sql.=' AND g.archived=1';
         if(!empty($filters['favorites']))$sql.=' AND g.favorite=1';
         if(!empty($filters['destination_id'])){$sql.=' AND g.destination_catalog_id=?';$args[]=(int)$filters['destination_id'];}
@@ -29,7 +29,7 @@ final class VacationPhotoGalleryService
     public function destinations(int $userId): array
     {
         if(!site_setting_bool('vacation_photos.gallery_enabled',true))return [];
-        $stmt=$this->pdo->prepare('SELECT COALESCE(destination_catalog_id,0) destination_id,destination,COUNT(*) image_count,SUM(favorite=1) favorite_count,MAX(created_at) last_created FROM vacation_photo_generations WHERE user_id=? AND status="completed" AND image_url IS NOT NULL AND deleted_at IS NULL AND archived=0 GROUP BY COALESCE(destination_catalog_id,0),destination ORDER BY last_created DESC');$stmt->execute([$userId]);return $stmt->fetchAll()?:[];
+        $stmt=$this->pdo->prepare("SELECT COALESCE(destination_catalog_id,0) destination_id,destination,COUNT(*) image_count,SUM(favorite=1) favorite_count,MAX(created_at) last_created FROM vacation_photo_generations WHERE user_id=? AND status='completed' AND image_url IS NOT NULL AND deleted_at IS NULL AND archived=0 GROUP BY COALESCE(destination_catalog_id,0),destination ORDER BY last_created DESC");$stmt->execute([$userId]);return $stmt->fetchAll()?:[];
     }
 
     public function toggleFavorite(int $userId,int $id): bool
@@ -66,7 +66,7 @@ final class VacationPhotoGalleryService
     {
         if(!site_setting_bool('vacation_photos.sharing_enabled',true))return null;
         if(!preg_match('/^[a-f0-9]{40}$/',$token))return null;
-        $stmt=$this->pdo->prepare('SELECT id,destination,scene,vibe,over_the_top_strength,image_url,origin,user_profile_snapshot_json,created_at FROM vacation_photo_generations WHERE share_token=? AND share_enabled=1 AND status="completed" AND image_url IS NOT NULL AND deleted_at IS NULL LIMIT 1');
+        $stmt=$this->pdo->prepare("SELECT id,destination,scene,vibe,over_the_top_strength,image_url,origin,user_profile_snapshot_json,created_at FROM vacation_photo_generations WHERE share_token=? AND share_enabled=1 AND status='completed' AND image_url IS NOT NULL AND deleted_at IS NULL LIMIT 1");
         $stmt->execute([$token]);$row=$stmt->fetch();if(!$row)return null;
         $presentation=$this->sharePresentation($row);
         unset($row['user_profile_snapshot_json']);
