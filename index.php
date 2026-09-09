@@ -15,30 +15,12 @@ $wantedSlugs = [
 ];
 
 $knownMerchMedia = [
-    'palm-springs-drop-001-hoodie' => [
-        'primary' => '/assets/merch/palm-springs-hoodie-front.webp',
-        'secondary' => '/assets/merch/palm-springs-hoodie-back.webp',
-    ],
-    'brighter-day-hoodie' => [
-        'primary' => '/assets/merch/brighter-day-hoodie-front.webp',
-        'secondary' => '/assets/merch/brighter-day-hoodie-back.webp',
-    ],
-    'palm-springs-trucker-hat' => [
-        'primary' => '/assets/merch/palm-springs-trucker-hat.webp',
-        'secondary' => '',
-    ],
-    'script-vintage-trucker-hat-rust' => [
-        'primary' => '/assets/merch/vintage-trucker-hat-rust.webp',
-        'secondary' => '',
-    ],
-    'script-vintage-trucker-hat-navy' => [
-        'primary' => '/assets/merch/vintage-trucker-hat-navy.webp',
-        'secondary' => '',
-    ],
-    'palm-springs-embroidered-patch' => [
-        'primary' => '/assets/merch/palm-springs-patch.webp',
-        'secondary' => '',
-    ],
+    'palm-springs-drop-001-hoodie' => ['primary' => '/assets/merch/palm-springs-hoodie-front.webp', 'secondary' => '/assets/merch/palm-springs-hoodie-back.webp'],
+    'brighter-day-hoodie' => ['primary' => '/assets/merch/brighter-day-hoodie-front.webp', 'secondary' => '/assets/merch/brighter-day-hoodie-back.webp'],
+    'palm-springs-trucker-hat' => ['primary' => '/assets/merch/palm-springs-trucker-hat.webp', 'secondary' => ''],
+    'script-vintage-trucker-hat-rust' => ['primary' => '/assets/merch/vintage-trucker-hat-rust.webp', 'secondary' => ''],
+    'script-vintage-trucker-hat-navy' => ['primary' => '/assets/merch/vintage-trucker-hat-navy.webp', 'secondary' => ''],
+    'palm-springs-embroidered-patch' => ['primary' => '/assets/merch/palm-springs-patch.webp', 'secondary' => ''],
 ];
 
 $merchProducts = [];
@@ -55,21 +37,15 @@ if (db_table_exists('merch_catalog_products')) {
         foreach ($merchProducts as &$product) {
             $slug = (string)$product['slug'];
             $fallback = $knownMerchMedia[$slug] ?? ['primary' => '', 'secondary' => ''];
-            $primary = trim((string)($product['image_url'] ?? ''));
-            $secondary = trim((string)($product['secondary_image_url'] ?? ''));
+            $knownPrimary = trim((string)$fallback['primary']);
+            $knownSecondary = trim((string)$fallback['secondary']);
+            $dbPrimary = trim((string)($product['image_url'] ?? ''));
+            $dbSecondary = trim((string)($product['secondary_image_url'] ?? ''));
 
-            if ($primary === '' || !local_media_exists($primary, __DIR__)) {
-                $primary = (string)$fallback['primary'];
-            }
-            if ($secondary === '' || !local_media_exists($secondary, __DIR__)) {
-                $secondary = (string)$fallback['secondary'];
-            }
-            if ($primary !== '' && !local_media_exists($primary, __DIR__)) {
-                $primary = '';
-            }
-            if ($secondary !== '' && !local_media_exists($secondary, __DIR__)) {
-                $secondary = '';
-            }
+            $primary = ($knownPrimary !== '' && local_media_exists($knownPrimary, __DIR__)) ? $knownPrimary : $dbPrimary;
+            $secondary = ($knownSecondary !== '' && local_media_exists($knownSecondary, __DIR__)) ? $knownSecondary : $dbSecondary;
+            if ($primary !== '' && !local_media_exists($primary, __DIR__)) $primary = '';
+            if ($secondary !== '' && !local_media_exists($secondary, __DIR__)) $secondary = '';
 
             $product['display_primary'] = $primary !== '' ? media_url($primary) : '';
             $product['display_secondary'] = $secondary !== '' ? media_url($secondary) : '';
@@ -102,14 +78,8 @@ require __DIR__ . '/partials/header.php';
     </div>
 
     <div class="vb-console" aria-label="Sample Vacation Brain diagnosis">
-      <div class="vb-console-top">
-        <div><span class="vb-console-label">Live brain status</span><strong>Vacation detected</strong></div>
-        <span class="vb-status-dot">Severe</span>
-      </div>
-      <div class="vb-score-row">
-        <div class="vb-score">742</div>
-        <div class="vb-score-copy"><span>Vacation Brain Score</span><strong>Mentally 2,143 miles away</strong></div>
-      </div>
+      <div class="vb-console-top"><div><span class="vb-console-label">Live brain status</span><strong>Vacation detected</strong></div><span class="vb-status-dot">Severe</span></div>
+      <div class="vb-score-row"><div class="vb-score">742</div><div class="vb-score-copy"><span>Vacation Brain Score</span><strong>Mentally 2,143 miles away</strong></div></div>
       <div class="vb-meter"><span></span></div>
       <div class="vb-symptoms">
         <div><span>01</span><p>Opening hotel tabs during work hours.</p></div>
@@ -119,39 +89,25 @@ require __DIR__ . '/partials/header.php';
       <div class="vb-prescription"><span>Suggested treatment</span><strong>5–7 nights somewhere warm.</strong><small>No scheduled activities before 10 AM.</small></div>
     </div>
   </div>
-  <div class="shell vb-marquee" aria-label="Vacation Brain process">
-    <span>DIAGNOSE</span><i>→</i><span>DAYDREAM</span><i>→</i><span>ESCAPE</span><i>→</i><span>FAKE VACATION</span><i>→</i><span>REPEAT AS NEEDED</span>
-  </div>
+  <div class="shell vb-marquee" aria-label="Vacation Brain process"><span>DIAGNOSE</span><i>→</i><span>DAYDREAM</span><i>→</i><span>ESCAPE</span><i>→</i><span>FAKE VACATION</span><i>→</i><span>REPEAT AS NEEDED</span></div>
 </section>
 
 <?php if ($merchProducts): ?>
 <section class="vb-shop" id="shop">
   <div class="shell">
-    <div class="vb-section-head">
-      <div><span class="vb-eyebrow">Vacation Brain · Off Duty Goods</span><h2>Wear the diagnosis.</h2></div>
-      <div class="vb-section-side"><p>Palm Springs graphics, vintage trucker hats and the first Vacation Brain hoodies. Built like actual products, not placeholder merch.</p><a href="<?=e(app_url('shop.php'))?>">Shop everything →</a></div>
-    </div>
-
+    <div class="vb-section-head"><div><span class="vb-eyebrow">Vacation Brain · Off Duty Goods</span><h2>Wear the diagnosis.</h2></div><div class="vb-section-side"><p>Palm Springs graphics, vintage trucker hats and the first Vacation Brain hoodies. Built like actual products, not placeholder merch.</p><a href="<?=e(app_url('shop.php'))?>">Shop everything →</a></div></div>
     <div class="vb-product-grid">
       <?php foreach ($merchProducts as $index => $product): ?>
         <?php $featured = $index < 2; $primary = (string)($product['display_primary'] ?? ''); $secondary = (string)($product['display_secondary'] ?? ''); ?>
-        <article class="vb-product <?=$featured ? 'vb-product--featured' : ''?>">
+        <article class="vb-product <?=$featured ? 'vb-product--featured' : ''?> <?=$secondary !== '' ? 'vb-product--two-sided' : ''?>">
           <a class="vb-product-media" href="<?=e(app_url('shop-product.php?slug='.urlencode((string)$product['slug'])))?>" aria-label="View <?=e((string)$product['name'])?>">
             <?php if ($primary !== ''): ?>
               <img class="vb-product-front" src="<?=e($primary)?>" alt="<?=e((string)$product['name'])?>" loading="lazy">
               <?php if ($secondary !== ''): ?><img class="vb-product-back" src="<?=e($secondary)?>" alt="<?=e((string)$product['name'])?> back view" loading="lazy"><?php endif; ?>
-            <?php else: ?>
-              <div class="vb-product-placeholder"><span>VACATION<br>BRAIN</span></div>
-            <?php endif; ?>
-            <div class="vb-product-tags">
-              <span><?=e(strtoupper((string)$product['product_type']))?></span>
-              <?php if ($secondary !== ''): ?><span>FRONT + BACK</span><?php endif; ?>
-            </div>
+            <?php else: ?><div class="vb-product-placeholder"><span>VACATION<br>BRAIN</span></div><?php endif; ?>
+            <div class="vb-product-tags"><span><?=e(strtoupper((string)$product['product_type']))?></span><?php if ($secondary !== ''): ?><span>FRONT + BACK</span><?php endif; ?></div>
           </a>
-          <div class="vb-product-info">
-            <div><h3><?=e((string)$product['name'])?></h3><p><?=e((string)$product['short_description'])?></p></div>
-            <div class="vb-product-bottom"><strong>$<?=number_format((float)$product['price'], 2)?></strong><a href="<?=e(app_url('shop-product.php?slug='.urlencode((string)$product['slug'])))?>">View →</a></div>
-          </div>
+          <div class="vb-product-info"><div><h3><?=e((string)$product['name'])?></h3><p><?=e((string)$product['short_description'])?></p></div><div class="vb-product-bottom"><strong>$<?=number_format((float)$product['price'], 2)?></strong><a href="<?=e(app_url('shop-product.php?slug='.urlencode((string)$product['slug'])))?>">View →</a></div></div>
         </article>
       <?php endforeach; ?>
     </div>
@@ -161,10 +117,7 @@ require __DIR__ . '/partials/header.php';
 
 <section class="vb-after">
   <div class="shell">
-    <div class="vb-section-head vb-section-head--light">
-      <div><span class="vb-eyebrow">After the diagnosis</span><h2>Then it starts getting useful.</h2></div>
-      <div class="vb-section-side"><p>The jokes are the front door. Every swipe, destination and fake vacation helps Vacation Brain understand what kind of escape you actually want.</p></div>
-    </div>
+    <div class="vb-section-head vb-section-head--light"><div><span class="vb-eyebrow">After the diagnosis</span><h2>Then it starts getting useful.</h2></div><div class="vb-section-side"><p>The jokes are the front door. Every swipe, destination and fake vacation helps Vacation Brain understand what kind of escape you actually want.</p></div></div>
     <div class="vb-feature-grid">
       <a class="vb-feature" href="<?=e(app_url('destinations.php'))?>"><span>01</span><div><small>Explore</small><h3>Find somewhere better</h3><p>Browse destination ideas, research places, weather, lodging and things worth leaving the hotel for.</p></div><b>↗</b></a>
       <a class="vb-feature" href="<?=e(app_url('vacation-yourself.php'))?>"><span>02</span><div><small>Vacation Yourself</small><h3>See the trip before you take it</h3><p>Use your own photos to generate fake vacation moments matched to your destination and travel profile.</p></div><b>↗</b></a>
@@ -184,12 +137,5 @@ require __DIR__ . '/partials/header.php';
   </div>
 </section>
 
-<section class="vb-final">
-  <div class="shell">
-    <div class="vb-final-card">
-      <div><span>VACATION BRAIN</span><h2>There is only one responsible next step.</h2><p>Find out how far gone you are before your brain starts booking imaginary hotels without you.</p></div>
-      <div class="vb-final-actions"><a class="button" href="<?=e(app_url('diagnosis.php'))?>">Take the diagnosis →</a><a href="<?=e(app_url('professional-assessment.php'))?>">Or get a professional opinion</a></div>
-    </div>
-  </div>
-</section>
+<section class="vb-final"><div class="shell"><div class="vb-final-card"><div><span>VACATION BRAIN</span><h2>There is only one responsible next step.</h2><p>Find out how far gone you are before your brain starts booking imaginary hotels without you.</p></div><div class="vb-final-actions"><a class="button" href="<?=e(app_url('diagnosis.php'))?>">Take the diagnosis →</a><a href="<?=e(app_url('professional-assessment.php'))?>">Or get a professional opinion</a></div></div></div></section>
 <?php require __DIR__ . '/partials/footer.php'; ?>
