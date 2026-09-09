@@ -40,6 +40,16 @@ jobs:
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
           test "$COUNT" -eq 29
 
+      - name: Validate WebP media
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v identify >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq imagemagick
+          fi
+          find assets/merch assets/sample/destinations -type f -name '*.webp' -print0 | xargs -0 -n1 identify >/dev/null
+
       - name: Build deploy package
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
@@ -53,6 +63,8 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'upgrade.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/029_vacation_brain_merch_collection.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-trucker-hat.webp'
 
       - name: Upload deploy package
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
