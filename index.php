@@ -16,7 +16,8 @@ try {
     $merch = [];
 }
 
-if (!$merch) {
+$merchFallback = !$merch;
+if ($merchFallback) {
     $merch = [
         ['slug'=>'palm-springs-drop-001-hoodie','name'=>'Palm Springs Drop 001 Hoodie','short_description'=>'Vintage cream. Pool days. Desert nights.','product_type'=>'hoodie','sku'=>'VB-PS-HOOD-001','price'=>64.99,'compare_at_price'=>null,'image_url'=>'/assets/merch/palm-springs-hoodie-front.webp','secondary_image_url'=>'/assets/merch/palm-springs-hoodie-back.webp'],
         ['slug'=>'brighter-day-hoodie','name'=>'A Brighter Day Hoodie','short_description'=>'Minimal front. Oversized twin-palm back graphic.','product_type'=>'hoodie','sku'=>'VB-BD-HOOD-001','price'=>64.99,'compare_at_price'=>null,'image_url'=>'/assets/merch/brighter-day-hoodie-front.webp','secondary_image_url'=>'/assets/merch/brighter-day-hoodie-back.webp'],
@@ -83,7 +84,7 @@ require __DIR__ . '/partials/header.php';
 
       <div class="vb-product-grid">
         <?php foreach ($merch as $product):
-          $productHref = app_url('shop-product.php?slug='.urlencode((string)$product['slug']));
+          $productHref = $merchFallback ? app_url('shop.php') : app_url('shop-product.php?slug='.urlencode((string)$product['slug']));
           $isTwoSided = !empty($product['secondary_image_url']);
         ?>
           <article class="vb-product-card">
@@ -103,7 +104,7 @@ require __DIR__ . '/partials/header.php';
               <p><?=e((string)$product['short_description'])?></p>
               <div class="vb-product-bottom">
                 <strong>$<?=number_format((float)$product['price'],2)?></strong>
-                <a href="<?=e($productHref)?>">View product →</a>
+                <a href="<?=e($productHref)?>"><?=$merchFallback?'Open shop →':'View product →'?></a>
               </div>
             </div>
           </article>
