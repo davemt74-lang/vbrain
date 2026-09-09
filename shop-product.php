@@ -1,6 +1,5 @@
 <?php
 require __DIR__.'/app/bootstrap.php';
-require_auth();
 
 $pdo = db();
 $slug = (string)($_GET['slug'] ?? '');
@@ -79,6 +78,7 @@ require __DIR__.'/partials/header.php';
           <input type="hidden" name="_csrf" value="<?=e(csrf_token())?>">
           <label>Quantity<input class="input" type="number" min="1" max="10" name="qty" value="1"></label>
           <button class="button primary">Add to cart</button>
+          <?php if (!auth_user_id()): ?><p class="microcopy">You can browse without an account. We’ll ask you to sign in when you continue to your cart.</p><?php endif; ?>
         </form>
       </div>
     </div>
