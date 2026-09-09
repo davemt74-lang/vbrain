@@ -1,0 +1,15 @@
+Vacation Brain v1.22 deployment
+
+1. Upload/extract the deployment package over the existing Vacation Brain installation.
+2. Sign in as an administrator and open /upgrade.php.
+3. Click "Run Vacation Brain Upgrade".
+
+Migration 029_vacation_brain_merch_collection.sql is discovered automatically by UpgradeService and is applied through upgrade.php in normal numeric migration order. No manual SQL import is required.
+
+This release includes:
+- Vacation Brain Off Duty Goods catalog products and merch imagery
+- separate front/back hoodie product images
+- redesigned landing page with the merch collection directly below the hero
+- public Shop navigation entry
+
+The migration is idempotent and advances app_meta app_version to 1.22.
