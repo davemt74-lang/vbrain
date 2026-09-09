@@ -39,3 +39,26 @@ jobs:
           test -f db/029_vacation_brain_merch_collection.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
           test "$COUNT" -eq 29
+
+      - name: Build deploy package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/vacation-brain-deploy
+          mkdir -p /tmp/vacation-brain-deploy
+          rsync -a --exclude='.git' --exclude='.github' --exclude='vacation-brain-deploy.zip' ./ /tmp/vacation-brain-deploy/
+          (cd /tmp/vacation-brain-deploy && zip -qr "$GITHUB_WORKSPACE/vacation-brain-deploy.zip" .)
+          test -s vacation-brain-deploy.zip
+          unzip -l vacation-brain-deploy.zip | grep -q 'upgrade.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'db/029_vacation_brain_merch_collection.sql'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
+
+      - name: Upload deploy package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vacation-brain-deploy
+          path: vacation-brain-deploy.zip
+          if-no-files-found: error
+          retention-days: 30
