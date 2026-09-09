@@ -3,22 +3,54 @@ declare(strict_types=1);
 
 final class VacationAgentService
 {
-    public function __construct(private PDO $pdo) {}
+    private VacationPhotoAgentService $photoAgent;
+
+    public function __construct(private PDO $pdo)
+    {
+        $this->photoAgent=new VacationPhotoAgentService($pdo,dirname(__DIR__,2));
+    }
 
     public function send(int $userId,string $message): string
     {
-        $message=trim($message);if($message==='')throw new InvalidArgumentException('Ask Vacation Brain something.');
+        return (string)$this->sendWithResult($userId,$message)['message'];
+    }
+
+    public function sendWithResult(int $userId,string $message,array $input=[]): array
+    {
+        $action=trim((string)($input['action']??''));
+        $message=trim($message);
+        if($message==='' && $action!=='')$message=$this->photoAgent->actionLabel($action,$input);
+        if($message==='')throw new InvalidArgumentException('Ask Vacation Brain something.');
+
         $this->pdo->prepare('INSERT INTO agent_messages (user_id,role,body) VALUES (? ,"user",?)')->execute([$userId,$message]);
-        $reply=$this->llmReply($userId,$message) ?? $this->reply($userId,$message);
+
+        try{
+            $result=$this->photoAgent->handle($userId,$message,$input);
+            if($result){
+                $reply=(string)($result['message']??'Vacation Brain completed the action.');
+            }else{
+                $reply=$this->llmReply($userId,$message) ?? $this->reply($userId,$message);
+                $result=['intent'=>'conversation','type'=>'text','message'=>$reply];
+            }
+        }catch(Throwable $e){
+            $reply=trim($e->getMessage()) ?: 'Vacation Brain could not complete that action.';
+            $result=['intent'=>'vacation_photo_error','type'=>'error','message'=>$reply];
+        }
+
         $this->pdo->prepare('INSERT INTO agent_messages (user_id,role,body) VALUES (? ,"assistant",?)')->execute([$userId,$reply]);
         $this->pdo->prepare('INSERT INTO user_events (user_id,event_type,value_text) VALUES (? ,"agent_message",?)')->execute([$userId,substr($message,0,1000)]);
         (new ScoreService($this->pdo))->award($userId,'agent_message',1);
-        return $reply;
+        return $result;
     }
 
-    public function history(int $userId,int $limit=40): array
+    public function history(int $userId,int $limit=60): array
     {
         $stmt=$this->pdo->prepare('SELECT role,body,created_at FROM agent_messages WHERE user_id=? ORDER BY id DESC LIMIT '.max(1,min(100,$limit)));$stmt->execute([$userId]);return array_reverse($stmt->fetchAll());
+    }
+
+    public function photoContext(int $userId): array
+    {
+        return $this->photoAgent->context($userId);
     }
 
     private function llmReply(int $userId,string $message): ?string
@@ -29,7 +61,7 @@ final class VacationAgentService
             $traitText=implode(', ',array_map(fn($t)=>(string)($t['name']??'Trait').' '.(int)($t['score']??50).'%', $traits));
             $researchContext='';
             try{$researchContext=(new DestinationResearchService($this->pdo))->agentContext($userId,2);}catch(Throwable){}
-            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. Do not reveal hidden scoring mechanics or claim certainty about preferences.'.($researchContext!==''?"\n\n".$researchContext:'');
+            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($researchContext!==''?"\n\n".$researchContext:'');
             return (new AiProviderService($this->pdo))->generateText($system,$message,$userId,'agent_chat',450);
         }catch(Throwable){return null;}
     }

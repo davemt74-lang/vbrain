@@ -85,8 +85,8 @@ final class VacationPhotoGalleryService
     {
         $row=$this->item($userId,$id);if(!$row)throw new RuntimeException('Vacation photo not found.');$refs=json_decode((string)($row['source_refs_json']??'[]'),true)?:[];$keys=[];foreach($refs as $ref){if(!empty($ref['key']))$keys[]=(string)$ref['key'];}
         $input=[
-            'destination_id'=>(int)($row['destination_catalog_id']??0),
-            'destination'=>(string)$row['destination'],
+            'destination_id'=>(int)($overrides['destination_id']??$row['destination_catalog_id']??0),
+            'destination'=>(string)($overrides['destination']??$row['destination']),
             'scene'=>(string)($overrides['scene']??$row['scene']??''),
             'vibe'=>(string)($overrides['vibe']??$row['vibe']??'realistic'),
             'over_the_top_strength'=>(int)($overrides['over_the_top_strength']??$row['over_the_top_strength']??35),
