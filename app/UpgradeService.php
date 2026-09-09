@@ -201,13 +201,16 @@ final class UpgradeService
             }
             $raw = $decoded;
         }
+        $key = (string) ($migration['key'] ?? '');
         $sql = self::sqlForSelectedDatabase($raw);
+        $sql = self::compatibilitySqlForMigration($key, $sql);
+        $resumeSafe = $key === '023_sample_data_destination_research';
         $run = $this->pdo->prepare('INSERT INTO upgrade_runs (migration_key,filename,status,run_by) VALUES (?,? ,"running",?)');
         $run->execute([$migration['key'], $migration['filename'], $adminId]);
         $runId = (int) $this->pdo->lastInsertId();
         $start = microtime(true);
         try {
-            $statements = $sql === '' ? 0 : self::executeSqlScript($this->pdo, $sql);
+            $statements = $sql === '' ? 0 : self::executeSqlScript($this->pdo, $sql, $resumeSafe);
             $ms = max(0, (int) round((microtime(true) - $start) * 1000));
             $after = $migration['app_version'] ?: $this->currentAppVersion();
             $stmt = $this->pdo->prepare('INSERT INTO schema_migrations
@@ -225,7 +228,7 @@ final class UpgradeService
         }
     }
 
-    public static function executeSqlScript(PDO $pdo, string $sql): int
+    public static function executeSqlScript(PDO $pdo, string $sql, bool $allowAlreadyAppliedDdl = false): int
     {
         $count = 0; $stmt = ''; $quote = null; $len = strlen($sql); $escape = false; $lineComment = false; $blockComment = false;
         for ($i=0; $i<$len; $i++) {
@@ -237,8 +240,17 @@ final class UpgradeService
                 if ($ch==='#') { $lineComment=true; continue; }
                 if ($ch==='/' && $next==='*') { $blockComment=true; $i++; continue; }
                 if ($ch==="'" || $ch==='"' || $ch==='`') { $quote=$ch; $stmt.=$ch; continue; }
-                if ($ch===';') { $trim=trim($stmt); if ($trim!=='') { $pdo->exec($trim); $count++; } $stmt=''; continue; }
-                $stmt.=$ch; continue;
+                if ($ch===';') {
+                    $trim=trim($stmt);
+                    if ($trim!=='') {
+                        self::executeStatement($pdo, $trim, $allowAlreadyAppliedDdl);
+                        $count++;
+                    }
+                    $stmt='';
+                    continue;
+                }
+                $stmt.=$ch;
+                continue;
             }
             $stmt.=$ch;
             if ($quote==='`') { if ($ch==='`') $quote=null; continue; }
@@ -249,7 +261,11 @@ final class UpgradeService
                 $quote=null;
             }
         }
-        $trim=trim($stmt); if ($trim!=='') { $pdo->exec($trim); $count++; }
+        $trim=trim($stmt);
+        if ($trim!=='') {
+            self::executeStatement($pdo, $trim, $allowAlreadyAppliedDdl);
+            $count++;
+        }
         return $count;
     }
 
@@ -258,6 +274,61 @@ final class UpgradeService
         $sql = preg_replace('/CREATE\s+DATABASE\s+IF\s+NOT\s+EXISTS\s+vacation_brain\s+CHARACTER\s+SET\s+utf8mb4\s+COLLATE\s+utf8mb4_0900_ai_ci\s*;/is','',$sql) ?? $sql;
         $sql = preg_replace('/\bUSE\s+vacation_brain\s*;/i','',$sql) ?? $sql;
         return trim($sql);
+    }
+
+    private static function compatibilitySqlForMigration(string $key, string $sql): string
+    {
+        if ($key !== '023_sample_data_destination_research') {
+            return $sql;
+        }
+
+        /*
+         * Migration 023 bridges older core tables created with MySQL 8's
+         * utf8mb4_0900_ai_ci collation and the newer catalog tables created with
+         * utf8mb4_unicode_ci. Comparing places.name/city directly with
+         * destination_catalog.name/city can therefore raise MySQL error 1267.
+         * Keep the source migration checksum stable, but execute those two
+         * comparisons with an explicit common collation.
+         */
+        $sql = str_replace(
+            "p.name=CONCAT(dc.name,' Sample Hotel')",
+            "p.name COLLATE utf8mb4_unicode_ci=CONCAT(dc.name,' Sample Hotel') COLLATE utf8mb4_unicode_ci",
+            $sql
+        );
+        $sql = str_replace(
+            "p.name=CONCAT(dc.name,' Local Favorite')",
+            "p.name COLLATE utf8mb4_unicode_ci=CONCAT(dc.name,' Local Favorite') COLLATE utf8mb4_unicode_ci",
+            $sql
+        );
+        $sql = str_replace(
+            "COALESCE(p.city,'')=COALESCE(dc.city,'')",
+            "COALESCE(p.city,'') COLLATE utf8mb4_unicode_ci=COALESCE(dc.city,'') COLLATE utf8mb4_unicode_ci",
+            $sql
+        );
+        return $sql;
+    }
+
+    private static function executeStatement(PDO $pdo, string $sql, bool $allowAlreadyAppliedDdl): void
+    {
+        try {
+            $pdo->exec($sql);
+        } catch (PDOException $e) {
+            if ($allowAlreadyAppliedDdl && self::isAlreadyAppliedDdlError($e, $sql)) {
+                return;
+            }
+            throw $e;
+        }
+    }
+
+    private static function isAlreadyAppliedDdlError(PDOException $e, string $sql): bool
+    {
+        $normalized = strtoupper(ltrim($sql));
+        if (!str_starts_with($normalized, 'ALTER TABLE') && !str_starts_with($normalized, 'CREATE TABLE')) {
+            return false;
+        }
+
+        $driverCode = isset($e->errorInfo[1]) ? (int) $e->errorInfo[1] : 0;
+        return in_array($driverCode, [1050, 1060, 1061, 1826], true);
     }
 
     private static function extractAppVersion(string $sql): ?string
