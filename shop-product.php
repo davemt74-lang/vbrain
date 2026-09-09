@@ -41,7 +41,7 @@ require __DIR__.'/partials/header.php';
         <?php if ($images): ?>
           <?php foreach ($images as $image): ?>
             <figure class="product-detail-media" style="margin:0;position:relative;overflow:hidden">
-              <img src="<?=e($image['url'])?>" alt="<?=e($p['name'].' — '.$image['label'])?>" style="display:block;width:100%;height:100%;object-fit:cover">
+              <img src="<?=e(media_url((string)$image['url']))?>" alt="<?=e($p['name'].' — '.$image['label'])?>" style="display:block;width:100%;height:100%;object-fit:cover">
               <?php if (count($images) > 1): ?>
                 <figcaption style="position:absolute;left:14px;bottom:14px;background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900"><?=e($image['label'])?></figcaption>
               <?php endif; ?>
