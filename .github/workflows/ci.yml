@@ -36,6 +36,6 @@ jobs:
         run: |
           set -euo pipefail
           test -f db/001_schema.sql
-          test -f db/028_vacation_photo_admin_economics.sql
+          test -f db/029_vacation_brain_merch_collection.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 28
+          test "$COUNT" -eq 29
