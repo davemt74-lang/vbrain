@@ -1,0 +1,41 @@
+name: Production Deploy Package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build deploy ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -r vacation-brain-deploy.zip . \
+            -x '.git/*' \
+               '.github/*' \
+               'config.php' \
+               '.env' \
+               '.env.*' \
+               'uploads/*' \
+               'storage/*' \
+               '*.log' \
+               'vacation-brain-deploy.zip'
+          unzip -t vacation-brain-deploy.zip
+
+      - name: Upload deploy ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: vacation-brain-deploy
+          path: vacation-brain-deploy.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
