@@ -37,6 +37,9 @@ jobs:
       - name: Check landing merch contract
         run: php tests/landing_merch_contract.php
 
+      - name: Check public header contract
+        run: php tests/public_header_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
