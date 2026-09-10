@@ -5,6 +5,7 @@ $pdo = db();
 $user = current_user();
 $pageStyles = ['assets/dashboard-trips.css'];
 $title = 'Dashboard — Vacation Brain';
+$destinationOwnerService = new DestinationOwnerService($pdo);
 
 function dashboard_sample_trip_fallbacks(): array
 {
@@ -33,8 +34,48 @@ function dashboard_trip_rows(PDO $pdo, string $category): array
     return $stmt->fetchAll() ?: [];
 }
 
-$localTrips = dashboard_trip_rows($pdo, 'local');
-$weekendTrips = dashboard_trip_rows($pdo, 'weekend');
+function dashboard_catalog_trip_rows(DestinationOwnerService $service,string $type): array
+{
+    if (!$service->ready()) return [];
+    $defaultDuration=['day_trip'=>'Day trip','weekend'=>'Weekend','multi_day'=>'Multi-day'][$type]??'Trip';
+    $rows=[];
+    foreach($service->publicTripRows($type,8) as $d){
+        $location=trim(implode(', ',array_filter([(string)($d['city']??''),(string)($d['region']??''),(string)($d['country']??'')])));
+        $rows[]=[
+            'destination_catalog_id'=>(int)$d['id'],
+            'slug'=>'catalog-'.$d['id'].'-'.$type,
+            'name'=>(string)$d['name'],
+            'location_text'=>$location,
+            'latitude'=>$d['latitude']??null,
+            'longitude'=>$d['longitude']??null,
+            'drive_minutes'=>null,
+            'duration_text'=>trim((string)($d['typical_duration']??''))?:$defaultDuration,
+            'subtitle'=>trim((string)($d['best_for']??''))?:trim((string)($d['vibe']??'')),
+            'rating'=>4.7,
+            'review_count'=>0,
+            'image_url'=>(string)($d['hero_image_url']??''),
+            'search_query'=>trim((string)$d['name'].($location!==''?', '.$location:'')),
+        ];
+    }
+    return $rows;
+}
+
+function dashboard_merge_trip_rows(array $primary,array $secondary,int $limit=8): array
+{
+    $out=[];$seen=[];
+    foreach(array_merge($primary,$secondary) as $row){$key=strtolower(trim((string)($row['name']??$row['slug']??'')));if($key===''||isset($seen[$key]))continue;$seen[$key]=true;$out[]=$row;if(count($out)>=$limit)break;}
+    return $out;
+}
+
+function dashboard_trip_url(array $trip): string
+{
+    $catalogId=(int)($trip['destination_catalog_id']??0);
+    if($catalogId>0) return app_url('destination-report.php?destination_id='.$catalogId);
+    return app_url('destination-report.php?q='.urlencode((string)($trip['search_query']??$trip['name']??'')));
+}
+
+$localTrips = dashboard_merge_trip_rows(dashboard_catalog_trip_rows($destinationOwnerService,'day_trip'),dashboard_trip_rows($pdo, 'local'));
+$weekendTrips = dashboard_merge_trip_rows(dashboard_catalog_trip_rows($destinationOwnerService,'weekend'),dashboard_trip_rows($pdo, 'weekend'));
 if (sample_data_enabled()) {
     $fallbacks = dashboard_sample_trip_fallbacks();
     if (!$localTrips) $localTrips = $fallbacks['local'];
@@ -42,7 +83,9 @@ if (sample_data_enabled()) {
 }
 
 $multiDayTrips = [];
-if (db_table_exists('destination_catalog')) {
+if ($destinationOwnerService->ready()) {
+    $multiDayTrips = $destinationOwnerService->publicTripRows('multi_day',8);
+} elseif (db_table_exists('destination_catalog')) {
     $sampleClause = (db_column_exists('destination_catalog','is_sample') && !sample_data_enabled()) ? ' AND d.is_sample=0' : '';
     $wanted = ['cabo-san-lucas','puerto-rico','maui','costa-rica'];
     $placeholders = implode(',', array_fill(0, count($wanted), '?'));
@@ -67,7 +110,7 @@ foreach ($localTrips as $trip) {
         'lng'=>$lng,
         'duration'=>(string)($trip['duration_text'] ?? ''),
         'image'=>media_url((string)($trip['image_url'] ?? '')),
-        'url'=>app_url('destination-report.php?q='.urlencode((string)($trip['search_query'] ?? $trip['name']))),
+        'url'=>dashboard_trip_url($trip),
     ];
 }
 
@@ -136,16 +179,16 @@ require __DIR__.'/partials/header.php';
           <div class="vb-local-cards">
             <?php foreach(array_slice($localTrips,0,4) as $trip):
               $image = trim((string)($trip['image_url'] ?? ''));
-              $url = app_url('destination-report.php?q='.urlencode((string)($trip['search_query'] ?? $trip['name'])));
+              $url = dashboard_trip_url($trip);
             ?>
-            <article class="vb-trip-card vb-local-card" data-trip-card data-lat="<?=e((string)($trip['latitude'] ?? ''))?>" data-lng="<?=e((string)($trip['longitude'] ?? ''))?>">
+            <article class="vb-trip-card vb-local-card" data-trip-card data-destination-id="<?=(int)($trip['destination_catalog_id']??0)?>" data-lat="<?=e((string)($trip['latitude'] ?? ''))?>" data-lng="<?=e((string)($trip['longitude'] ?? ''))?>">
               <a class="vb-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>>
                 <span class="vb-trip-time" data-trip-time><?=e((string)($trip['duration_text'] ?? 'Nearby'))?></span><span class="vb-trip-heart" aria-hidden="true">♡</span>
               </a>
               <div class="vb-trip-card-body"><h2><?=e((string)$trip['name'])?></h2><p><?=e((string)($trip['subtitle'] ?? $trip['location_text'] ?? ''))?></p><div class="vb-trip-rating"><span>★</span> <?=number_format((float)($trip['rating'] ?? 4.7),1)?> <small>(<?=e(dashboard_review_count((int)($trip['review_count'] ?? 0)))?>)</small></div><a class="vb-trip-details" href="<?=e($url)?>">View Details</a></div>
             </article>
             <?php endforeach;?>
-            <?php if(!$localTrips):?><div class="dashboard-card vb-trip-empty"><h2>No local day trips yet.</h2><p class="muted">Turn on Sample Data or add local suggestions to the dashboard catalog.</p></div><?php endif;?>
+            <?php if(!$localTrips):?><div class="dashboard-card vb-trip-empty"><h2>No local day trips yet.</h2><p class="muted">Destination owners can classify published listings as Day Trip from their dashboard.</p></div><?php endif;?>
           </div>
         </div>
       </section>
@@ -155,11 +198,11 @@ require __DIR__.'/partials/header.php';
         <div class="vb-wide-trip-grid">
           <?php foreach(array_slice($weekendTrips,0,4) as $trip):
             $image=trim((string)($trip['image_url'] ?? ''));
-            $url=app_url('destination-report.php?q='.urlencode((string)($trip['search_query'] ?? $trip['name'])));
+            $url=dashboard_trip_url($trip);
           ?>
-          <article class="vb-wide-trip-card"><a class="vb-wide-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>><span class="vb-trip-heart" aria-hidden="true">♡</span></a><div class="vb-wide-trip-body"><h3><?=e((string)$trip['name'])?></h3><div class="vb-wide-meta"><span>→ <?=e((string)($trip['duration_text'] ?? 'Weekend'))?></span><span><?=e((string)($trip['subtitle'] ?? 'Explore · Relax'))?></span><span class="rating">★ <?=number_format((float)($trip['rating'] ?? 4.6),1)?> <small>(<?=e(dashboard_review_count((int)($trip['review_count'] ?? 0)))?>)</small></span></div></div></article>
+          <article class="vb-wide-trip-card" data-destination-id="<?=(int)($trip['destination_catalog_id']??0)?>"><a class="vb-wide-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>><span class="vb-trip-heart" aria-hidden="true">♡</span></a><div class="vb-wide-trip-body"><h3><?=e((string)$trip['name'])?></h3><div class="vb-wide-meta"><span>→ <?=e((string)($trip['duration_text'] ?? 'Weekend'))?></span><span><?=e((string)($trip['subtitle'] ?? 'Explore · Relax'))?></span><span class="rating">★ <?=number_format((float)($trip['rating'] ?? 4.6),1)?> <small>(<?=e(dashboard_review_count((int)($trip['review_count'] ?? 0)))?>)</small></span></div></div></article>
           <?php endforeach;?>
-          <?php if(!$weekendTrips):?><div class="dashboard-card vb-trip-empty"><h2>No weekend getaways yet.</h2><p class="muted">Sample Data can populate this section while the live catalog grows.</p></div><?php endif;?>
+          <?php if(!$weekendTrips):?><div class="dashboard-card vb-trip-empty"><h2>No weekend getaways yet.</h2><p class="muted">Destination owners can classify published listings as Weekend Getaway.</p></div><?php endif;?>
         </div>
       </section>
 
@@ -170,10 +213,11 @@ require __DIR__.'/partials/header.php';
             $image=trim((string)($trip['hero_image_url'] ?? ''));
             $url=app_url('destination-report.php?destination_id='.(int)$trip['id']);
             $meta=(string)($trip['best_for'] ?? $trip['vibe'] ?? 'Adventure · Escape');
+            $duration=trim((string)($trip['typical_duration']??''))?:'5–7 days';
           ?>
-          <article class="vb-wide-trip-card"><a class="vb-wide-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>><span class="vb-trip-heart" aria-hidden="true">♡</span></a><div class="vb-wide-trip-body"><h3><?=e((string)$trip['name'])?></h3><div class="vb-wide-meta"><span>→ 5–7 days</span><span><?=e($meta)?></span><span class="rating">★ 4.8 <small>(sample)</small></span></div></div></article>
+          <article class="vb-wide-trip-card" data-destination-id="<?=(int)$trip['id']?>"><a class="vb-wide-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>><span class="vb-trip-heart" aria-hidden="true">♡</span></a><div class="vb-wide-trip-body"><h3><?=e((string)$trip['name'])?></h3><div class="vb-wide-meta"><span>→ <?=e($duration)?></span><span><?=e($meta)?></span><span class="rating">★ 4.8 <small>(sample)</small></span></div></div></article>
           <?php endforeach;?>
-          <?php if(!$multiDayTrips):?><div class="dashboard-card vb-trip-empty"><h2>No multi-day excursions yet.</h2><p class="muted">Add destinations to the catalog or enable Sample Data.</p></div><?php endif;?>
+          <?php if(!$multiDayTrips):?><div class="dashboard-card vb-trip-empty"><h2>No multi-day excursions yet.</h2><p class="muted">Destination owners can classify published listings as Multi-Day Excursion.</p></div><?php endif;?>
         </div>
       </section>
 
