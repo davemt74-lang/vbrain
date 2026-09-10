@@ -5,6 +5,7 @@ $current = basename($_SERVER['PHP_SELF'] ?? '');
 $scriptPath = str_replace('\\','/', $_SERVER['PHP_SELF'] ?? '');
 $inAdmin = str_contains($scriptPath, '/admin/') || $current === 'upgrade.php';
 $matchUnread = 0; $notificationUnread = 0;
+$destinationAccountsReady = false; $destinationDashboardAvailable = false;
 $siteName = site_setting('brand.site_name','Vacation Brain') ?: 'Vacation Brain';
 $siteLogo = site_setting('brand.logo_url','') ?: '';
 $pwaEnabled = site_setting_bool('pwa.enabled');
@@ -20,6 +21,7 @@ $pageStyles = is_array($pageStyles ?? null) ? $pageStyles : [];
 if ($user) {
     try { $matchUnread = (new TravelMessageService(db()))->unreadCount((int)$user['id']); } catch (Throwable $e) { $matchUnread = 0; }
     try { $notificationUnread = (new NotificationService(db()))->unreadCount((int)$user['id']); } catch (Throwable $e) { $notificationUnread = 0; }
+    try { $destinationOwnerNav = new DestinationOwnerService(db()); $destinationAccountsReady=$destinationOwnerNav->ready(); $destinationDashboardAvailable=$destinationOwnerNav->canUseDashboard((int)$user['id']); } catch (Throwable $e) { $destinationAccountsReady=false; $destinationDashboardAvailable=false; }
 }
 function nav_active(array $files): string { global $current; return in_array($current,$files,true)?'active':''; }
 ?>
@@ -86,6 +88,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
       <a class="<?=nav_active(['today.php'])?>" href="<?=e(app_url('today.php'))?>"><span>⌂</span>Dashboard</a>
       <a class="<?=nav_active(['dream.php','dream-trip.php'])?>" href="<?=e(app_url('dream.php'))?>"><span>☁</span>Plan Trip</a>
       <a class="<?=nav_active(['destinations.php'])?>" href="<?=e(app_url('destinations.php'))?>"><span>⌖</span>Destinations</a>
+      <?php if($destinationDashboardAvailable):?><a class="<?=nav_active(['destination-dashboard.php','destination-edit.php'])?>" href="<?=e(app_url('destination-dashboard.php'))?>"><span>▤</span>Destination Dashboard</a><?php endif;?>
       <a class="<?=nav_active(['photos.php','vacation-yourself.php','vacation-gallery.php'])?>" href="<?=e(app_url('photos.php'))?>"><span>▧</span>Photos</a>
       <a class="<?=nav_active(['shop.php','shop-product.php','cart.php','checkout.php','merch.php'])?>" href="<?=e(app_url('shop.php'))?>"><span>▣</span>Shop</a>
       <span class="sidebar-section-label second">Travel Matching</span>
@@ -106,6 +109,8 @@ function nav_active(array $files): string { global $current; return in_array($cu
     <div class="sidebar-user-menu" data-user-menu>
       <a href="<?=e(app_url('profile.php'))?>">My Vacation Brain</a>
       <a href="<?=e(app_url('photos.php'))?>">Photos</a>
+      <?php if($destinationDashboardAvailable):?><a href="<?=e(app_url('destination-dashboard.php'))?>">Destination Dashboard</a><?php endif;?>
+      <?php if($destinationAccountsReady):?><a href="<?=e(app_url('destination-claim.php'))?>">Claim a Destination</a><?php endif;?>
       <a href="<?=e(app_url('account.php'))?>">Account & Settings</a>
       <a href="<?=e(app_url('match-profile.php'))?>">Travel Match Profile</a>
       <a href="<?=e(app_url('notification-settings.php'))?>">Notification Settings</a>
