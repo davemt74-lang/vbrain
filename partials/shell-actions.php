@@ -1,5 +1,6 @@
 <?php
 $shellUser = current_user();
+$shellPage = basename($_SERVER['PHP_SELF'] ?? '');
 $shellCartCount = 0;
 foreach ((array)($_SESSION['shop_cart'] ?? []) as $qty) $shellCartCount += max(0, (int)$qty);
 $shellNotificationCount = 0;
@@ -7,6 +8,7 @@ if ($shellUser) {
     try { $shellNotificationCount = (new NotificationService(db()))->unreadCount((int)$shellUser['id']); } catch (Throwable $e) { $shellNotificationCount = 0; }
 }
 ?>
+<?php if($shellPage==='index.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/landing-header-fixes.css'))?>"><?php endif;?>
 <div class="vb-shell-actions" data-shell-actions data-shell-api="<?=e(app_url('api/shell-state.php'))?>" data-shell-csrf="<?=e(csrf_token())?>" data-shell-auth="<?=$shellUser?'1':'0'?>">
   <?php if($shellUser):?>
   <div class="vb-notification-wrap" data-notification-wrap>
