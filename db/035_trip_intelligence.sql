@@ -1,6 +1,6 @@
 USE vacation_brain;
 
--- Vacation Brain v1.27: live trip intelligence, provider snapshots and structured itinerary scheduling.
+-- Vacation Brain v1.27: live trip intelligence, provider snapshots and scoped trip agents.
 ALTER TABLE dream_trips
   ADD COLUMN destination_catalog_id BIGINT UNSIGNED NULL AFTER destination_id,
   ADD COLUMN origin_name VARCHAR(255) NULL AFTER destination_catalog_id,
@@ -64,30 +64,6 @@ CREATE TABLE trip_agent_messages (
   CONSTRAINT fk_trip_agent_dream FOREIGN KEY (dream_trip_id) REFERENCES dream_trips(id) ON DELETE CASCADE,
   CONSTRAINT fk_trip_agent_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE travel_provider_settings (
-  provider VARCHAR(64) NOT NULL,
-  display_name VARCHAR(120) NOT NULL,
-  api_key_encrypted TEXT NULL,
-  enabled TINYINT(1) NOT NULL DEFAULT 0,
-  settings_json JSON NULL,
-  last_test_status VARCHAR(24) NOT NULL DEFAULT 'never',
-  last_tested_at DATETIME NULL,
-  last_error VARCHAR(500) NULL,
-  updated_by BIGINT UNSIGNED NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (provider),
-  KEY idx_travel_provider_enabled (enabled,provider),
-  CONSTRAINT fk_travel_provider_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO travel_provider_settings (provider,display_name,enabled,settings_json) VALUES
-  ('visual_crossing','Visual Crossing',0,JSON_OBJECT()),
-  ('ticketmaster','Ticketmaster Discovery',0,JSON_OBJECT()),
-  ('google_places','Google Places',0,JSON_OBJECT()),
-  ('skyscanner','Skyscanner',0,JSON_OBJECT('market','US','locale','en-US','currency','USD'))
-ON DUPLICATE KEY UPDATE display_name=VALUES(display_name);
 
 -- Match legacy dream destinations to the canonical owner-managed catalog where possible.
 UPDATE dream_trips dt
