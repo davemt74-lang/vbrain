@@ -6,6 +6,7 @@ $files=[
     'db/034_destination_owner_accounts.sql',
     'app/Services/AccountTypeService.php',
     'app/Services/DestinationOwnerService.php',
+    'destination.php',
     'destination-dashboard.php',
     'destination-edit.php',
     'destination-claim.php',
@@ -45,6 +46,8 @@ $owner=$read('app/Services/DestinationOwnerService.php');
 foreach(['canManage','canManageTeam','saveListing','setTripTypes','submitForReview','setPublicationStatus','requestClaim','resolveClaim','assignMembership','addManagerByEmail','publicTripRows','recentChanges','logEngagement'] as $needle){if(strpos($owner,$needle)===false){fwrite(STDERR,"Destination owner service missing {$needle}\n");exit(1);}}
 if(strpos($owner,"['admin','owner','manager']")===false){fwrite(STDERR,"Destination edit permissions are not explicitly constrained.\n");exit(1);}
 
+$listing=$read('destination.php');
+foreach(['Verified official listing','Official destination profile','Vacation Brain research','official_highlights','transportation_notes','destination-go.php','official_listing'] as $needle){if(strpos($listing,$needle)===false){fwrite(STDERR,"Official destination listing missing {$needle}\n");exit(1);}}
 $dashboard=$read('destination-dashboard.php');
 foreach(['Destination Dashboard','Listing health','Vacation Brain activity','Destination team','Audit history','submit_review','add_manager'] as $needle){if(strpos($dashboard,$needle)===false){fwrite(STDERR,"Destination dashboard missing {$needle}\n");exit(1);}}
 $editor=$read('destination-edit.php');
@@ -64,7 +67,7 @@ foreach(['Destination Dashboard','destination-claim.php','destinationDashboardAv
 $today=$read('today.php');
 foreach(['dashboard_catalog_trip_rows','publicTripRows','day_trip','weekend','multi_day','data-destination-id'] as $needle){if(strpos($today,$needle)===false){fwrite(STDERR,"Dashboard destination placement missing {$needle}\n");exit(1);}}
 $destinations=$read('destinations.php');
-foreach(["publication_status='published'",'trip_types_csv','destination-go.php','Claim the listing'] as $needle){if(strpos($destinations,$needle)===false){fwrite(STDERR,"Public destination ownership integration missing {$needle}\n");exit(1);}}
+foreach(["publication_status='published'",'trip_types_csv','destination.php?destination_id=','destination-go.php','Claim the listing'] as $needle){if(strpos($destinations,$needle)===false){fwrite(STDERR,"Public destination ownership integration missing {$needle}\n");exit(1);}}
 $agent=$read('assets/dashboard-agent-bar.js');
 if(strpos($agent,"getAttribute('data-destination-id')")===false){fwrite(STDERR,"Agent context does not preserve catalog destination IDs.\n");exit(1);}
 $context=$read('app/Services/DashboardDestinationContextService.php');
