@@ -21,7 +21,7 @@ if (strpos($header,'<span>⌂</span>Dashboard') === false) { fwrite(STDERR,"Logg
 if (preg_match('#href="<\?=e\(app_url\(\'swipe\.php\'\)\)\?>"#',$header) || preg_match('#href="<\?=e\(app_url\(\'escape\.php\'\)\)\?>"#',$header)) {
     fwrite(STDERR,"Swipe and Escape must not be primary sidebar entries.\n"); exit(1);
 }
-if (strpos($footer,"'today.php'") === false) { fwrite(STDERR,"Dashboard should suppress the global chat composer.\n"); exit(1); }
+if (strpos($footer,'data-vb-agent-config') === false || strpos($footer,'dashboard-agent-bar.js') === false) { fwrite(STDERR,"Dashboard must use the unified Vacation Brain composer.\n"); exit(1); }
 foreach (['navigator.geolocation','setView','data-use-location'] as $needle) {
     if (strpos($js,$needle) === false) { fwrite(STDERR,"Missing dashboard map behavior: {$needle}\n"); exit(1); }
 }
