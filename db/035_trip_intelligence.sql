@@ -39,7 +39,7 @@ CREATE TABLE trip_intelligence_snapshots (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_trip_snapshot_query (dream_trip_id,provider,data_type,query_hash),
+  KEY idx_trip_snapshot_query (dream_trip_id,provider,data_type,query_hash),
   KEY idx_trip_snapshot_current (dream_trip_id,data_type,observed_at),
   KEY idx_trip_snapshot_user (user_id,data_type,observed_at),
   KEY idx_trip_snapshot_expiry (expires_at),
