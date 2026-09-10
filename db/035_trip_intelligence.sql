@@ -47,6 +47,24 @@ CREATE TABLE trip_intelligence_snapshots (
   CONSTRAINT fk_trip_snapshot_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE trip_agent_messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  dream_trip_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  agent_type VARCHAR(32) NOT NULL,
+  role VARCHAR(16) NOT NULL,
+  body TEXT NOT NULL,
+  fingerprint CHAR(64) NULL,
+  metadata_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_trip_agent_fingerprint (dream_trip_id,agent_type,fingerprint),
+  KEY idx_trip_agent_history (dream_trip_id,user_id,agent_type,id),
+  KEY idx_trip_agent_recent (user_id,created_at),
+  CONSTRAINT fk_trip_agent_dream FOREIGN KEY (dream_trip_id) REFERENCES dream_trips(id) ON DELETE CASCADE,
+  CONSTRAINT fk_trip_agent_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE travel_provider_settings (
   provider VARCHAR(64) NOT NULL,
   display_name VARCHAR(120) NOT NULL,
