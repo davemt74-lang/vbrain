@@ -1,5 +1,5 @@
 <?php
-require __DIR__.'/app/bootstrap.php';require_auth();$pdo=db();$cart=$_SESSION['shop_cart']??[];
+require __DIR__.'/app/bootstrap.php';$pdo=db();$cart=$_SESSION['shop_cart']??[];
 if($_SERVER['REQUEST_METHOD']==='POST'){verify_csrf();$action=(string)($_POST['action']??'');$id=(int)($_POST['product_id']??0);if($action==='remove')unset($_SESSION['shop_cart'][$id]);elseif($action==='qty'){$qty=max(0,min(10,(int)($_POST['qty']??0)));if($qty===0)unset($_SESSION['shop_cart'][$id]);else $_SESSION['shop_cart'][$id]=$qty;}redirect('cart.php');}
 $rows=[];$total=0.0;if($cart){$ids=array_map('intval',array_keys($cart));$marks=implode(',',array_fill(0,count($ids),'?'));$stmt=$pdo->prepare("SELECT * FROM merch_catalog_products WHERE id IN ($marks) AND status='active'");$stmt->execute($ids);foreach($stmt->fetchAll() as $p){$qty=(int)($cart[$p['id']]??0);$p['qty']=$qty;$p['line_total']=$qty*(float)$p['price'];$total+=$p['line_total'];$rows[]=$p;}}
 $title='Cart — Vacation Brain';require __DIR__.'/partials/header.php';
