@@ -25,7 +25,7 @@ if (strpos($header,'>Plan Trip</a>') === false) {
 if (strpos($header,'brand-mark') !== false) {
     fwrite(STDERR,"Fallback Vacation Brain logo mark must remain removed.\n"); exit(1);
 }
-foreach (['require_auth()','dashboard_agent_tabs',"$action === 'create'","$action === 'update'","$action === 'delete'",'hash_equals','WHERE id=? AND user_id=?'] as $needle) {
+foreach (['require_auth()','dashboard_agent_tabs',"\$action === 'create'","\$action === 'update'","\$action === 'delete'",'hash_equals','WHERE id=? AND user_id=?'] as $needle) {
     if (strpos($api,$needle) === false) { fwrite(STDERR,"Missing agent-tab API behavior: {$needle}\n"); exit(1); }
 }
 foreach (['CREATE TABLE IF NOT EXISTS dashboard_agent_tabs','FOREIGN KEY (user_id)','settings_json'] as $needle) {
