@@ -38,6 +38,8 @@ require_once __DIR__ . '/Services/DiagnosisPersistenceService.php';
 require_once __DIR__ . '/Services/SwipeService.php';
 require_once __DIR__ . '/Services/AchievementService.php';
 require_once __DIR__ . '/Services/UserService.php';
+require_once __DIR__ . '/Services/AccountTypeService.php';
+require_once __DIR__ . '/Services/DestinationOwnerService.php';
 require_once __DIR__ . '/Services/UploadService.php';
 require_once __DIR__ . '/Services/CheckinService.php';
 require_once __DIR__ . '/Services/SubstitutionService.php';
