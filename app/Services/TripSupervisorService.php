@@ -13,6 +13,26 @@ final class TripSupervisorService
         ];
     }
 
+    public function activeResult(string $agentType,array $dashboard): array
+    {
+        $agentType=strtolower(trim($agentType));$trip=$dashboard['trip']??[];$snap=$dashboard['snapshots']??[];$weather=$snap['weather']['payload']??[];$flights=$snap['flights']['payload']??[];$events=$snap['events']['payload']??[];$places=$snap['places']['payload']??[];$budget=$dashboard['budget']??[];
+        if($agentType==='weather'){
+            if(empty($weather['ok']))return ['title'=>'Weather Agent is waiting for data','body'=>(string)($weather['error']??'Refresh weather intelligence to activate this agent.'),'status'=>'waiting'];$day=$weather['days'][0]??[];$parts=[];if(isset($day['high'])&&$day['high']!==null)$parts[]='high '.round((float)$day['high']).'°';if(isset($day['precip_probability'])&&$day['precip_probability']!==null)$parts[]='rain '.round((float)$day['precip_probability']).'%';if(!empty($day['conditions']))$parts[]=(string)$day['conditions'];$history=$weather['history']??[];$historyText=!empty($history['available'])?' Historical average high: '.round((float)($history['avg_high']??0)).'°.':'';return ['title'=>'Weather Agent is active','body'=>(string)($weather['resolved_address']??$trip['destination_name']??'Destination').' · '.implode(' · ',$parts).'.'.$historyText,'status'=>'active'];
+        }
+        if($agentType==='flights'){
+            if(empty($flights['ok']))return ['title'=>'Flights Agent is waiting for partner data','body'=>(string)($flights['error']??'Add route codes and connect Skyscanner partner access.'),'status'=>'waiting'];return ['title'=>'Flights Agent is watching the route','body'=>(string)($flights['origin_iata']??'').' → '.(string)($flights['destination_iata']??'').' · lowest indicative fare '.($flights['min_price']!==null?'$'.number_format((float)$flights['min_price'],0):'not available').' · '.(int)($flights['quote_count']??0).' cached quotes.','status'=>'active'];
+        }
+        if($agentType==='events'){
+            if(empty($events['ok']))return ['title'=>'Events Agent is waiting for data','body'=>(string)($events['error']??'Connect Ticketmaster Discovery and refresh this tab.'),'status'=>'waiting'];$first=$events['items'][0]??null;return ['title'=>'Events Agent is active','body'=>(int)($events['count']??count($events['items']??[])).' matching events in the current trip window'.($first?' · Next strong result: '.(string)$first['name'].' on '.(string)$first['date']:'.'),'status'=>'active'];
+        }
+        if($agentType==='local'){
+            if(empty($places['ok']))return ['title'=>'Local Agent is waiting for data','body'=>(string)($places['error']??'Connect Google Places and refresh this tab.'),'status'=>'waiting'];$first=$places['items'][0]??null;return ['title'=>'Local Agent is active','body'=>count($places['items']??[]).' current restaurants, bars and attractions'.($first?' · Top current result: '.(string)$first['name'].(($first['rating']??null)!==null?' '.number_format((float)$first['rating'],1).'★':''):'.'),'status'=>'active'];
+        }
+        if($agentType==='itinerary'){$items=$trip['items']??[];$scheduled=0;foreach($items as $item)if(!empty($item['scheduled_date']))$scheduled++;return ['title'=>'Itinerary Agent is active','body'=>count($items).' saved trip items · '.$scheduled.' scheduled · '.(count($items)-$scheduled).' still flexible.','status'=>'active'];}
+        if($agentType==='budget'){$target=$budget['target']??null;$projected=(float)($budget['projected']??0);$body='Projected trip cost $'.number_format($projected,0);if($target!==null)$body.=' against a $'.number_format((float)$target,0).' target · '.(($budget['remaining']??0)>=0?'$'.number_format((float)$budget['remaining'],0).' remaining':'$'.number_format(abs((float)$budget['remaining']),0).' over target');return ['title'=>'Budget Agent is active','body'=>$body.'.','status'=>'active'];}
+        $overview=$this->overview((int)($trip['user_id']??0),(int)($trip['id']??0),$dashboard);$top=$overview['suggestions'][0]??null;return ['title'=>'Overview Agent is supervising the trip','body'=>$top?((string)$top['title'].' — '.(string)$top['body']):'All current trip data is being tracked. Refresh intelligence to surface new booking and planning opportunities.','status'=>'active'];
+    }
+
     public function recordProactive(int $userId,int $tripId,array $dashboard): void
     {
         if(!db_table_exists('trip_agent_messages'))return;
@@ -48,7 +68,7 @@ final class TripSupervisorService
     {
         $trip=$dashboard['trip']??[];$weather=$dashboard['snapshots']['weather']['payload']??[];$flights=$dashboard['snapshots']['flights']['payload']??[];$events=$dashboard['snapshots']['events']['payload']??[];$places=$dashboard['snapshots']['places']['payload']??[];$budget=$dashboard['budget']??[];$opportunities=$dashboard['opportunities']??[];$out=[];
         $start=(string)($trip['start_date']??'');$daysAway=null;if($start!==''){$ts=strtotime($start);if($ts)$daysAway=(int)floor(($ts-strtotime('today'))/86400);}
-        if($start===''||empty($trip['end_date']))$out[]=$this->s('dates','Set real travel dates','Weather, events and flight pricing become much more useful once departure and return dates are set.','planning',94,'dates');
+        if($start===''||empty($trip['end_date']))$out[]=$this->s('dates','Set real travel dates','Weather, events and flight pricing become much more useful once departure and return dates are set.','planning',94,'overview');
         if(trim((string)($trip['origin_name']??''))===''&&trim((string)($trip['origin_iata']??''))==='')$out[]=$this->s('origin','Add your starting city','Flight intelligence needs an origin before Vacation Brain can watch airfare.','flight',90,'flights');
         if(!empty($weather['alerts'][0])){$alert=$weather['alerts'][0];$out[]=$this->s('weather-alert','Recheck the outdoor plan',(string)($alert['event']??'A weather alert').' is active for the destination.','weather',99,'weather');}
         if($daysAway!==null&&$daysAway>=0&&$daysAway<=45){if(!empty($flights['ok'])&&is_numeric($flights['min_price']??null))$out[]=$this->s('fare-window','Flight decision window is active','Your trip is '.$daysAway.' days away and indicative fares currently start around $'.number_format((float)$flights['min_price'],0).' per traveler.','booking',96,'flights');else $out[]=$this->s('flight-search','Get flight pricing into the trip','You are '.$daysAway.' days out. Add airport codes or connect flight data so the Flights Agent can track the route.','flight',91,'flights');}
