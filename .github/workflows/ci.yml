@@ -34,6 +34,9 @@ jobs:
       - name: Check config runtime contract
         run: php tests/config_runtime_contract.php
 
+      - name: Check landing merch contract
+        run: php tests/landing_merch_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
@@ -74,6 +77,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'config-example.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'api/shell-state.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/shell-commerce.js'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/landing-merch-fix.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/030_progressive_diagnosis.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
