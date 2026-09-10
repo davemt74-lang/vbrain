@@ -3,7 +3,7 @@
 var configNode=document.querySelector('[data-vb-agent-config]');if(!configNode)return;
 var config={};try{config=JSON.parse(configNode.textContent||'{}');}catch(e){return;}
 var scriptUrl=(document.currentScript&&document.currentScript.src)||window.location.href;
-try{var link=document.createElement('link');link.rel='stylesheet';link.href=new URL('dashboard-agent-bar.css',scriptUrl).toString();document.head.appendChild(link);}catch(e){}
+if(!document.querySelector('[data-vb-agent-bar-style]')){try{var link=document.createElement('link');link.rel='stylesheet';link.href=new URL('dashboard-agent-bar.css',scriptUrl).toString();link.setAttribute('data-vb-agent-bar-style','');document.head.appendChild(link);}catch(e){}}
 var csrf=String(config.csrf||'');
 var contextApi=String(config.context_api||new URL('../api/dashboard-destination-context.php',scriptUrl));
 var agentUrl=String(config.agent_url||new URL('../agent.php',scriptUrl));
