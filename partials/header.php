@@ -86,7 +86,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
     <?php else: ?>
       <span class="sidebar-section-label">Vacation Brain</span>
       <a class="<?=nav_active(['today.php'])?>" href="<?=e(app_url('today.php'))?>"><span>⌂</span>Dashboard</a>
-      <a class="<?=nav_active(['dream.php','dream-trip.php'])?>" href="<?=e(app_url('dream.php'))?>"><span>☁</span>Plan Trip</a>
+      <a class="<?=nav_active(['dream.php','dream-new.php','dream-trip.php'])?>" href="<?=e(app_url('dream.php'))?>"><span>☁</span>Plan Trip</a>
       <a class="<?=nav_active(['destinations.php'])?>" href="<?=e(app_url('destinations.php'))?>"><span>⌖</span>Destinations</a>
       <?php if($destinationDashboardAvailable):?><a class="<?=nav_active(['destination-dashboard.php','destination-edit.php'])?>" href="<?=e(app_url('destination-dashboard.php'))?>"><span>▤</span>Destination Dashboard</a><?php endif;?>
       <a class="<?=nav_active(['photos.php','vacation-yourself.php','vacation-gallery.php'])?>" href="<?=e(app_url('photos.php'))?>"><span>▧</span>Photos</a>
