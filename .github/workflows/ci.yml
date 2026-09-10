@@ -107,6 +107,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'api/dashboard-destination-context.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'api/photos.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'photos.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'destination.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'destination-dashboard.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'destination-edit.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'destination-claim.php'
