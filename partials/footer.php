@@ -8,6 +8,7 @@
 <?php require __DIR__.'/shell-actions.php'; ?>
 <script src="<?=e(app_url('assets/app.js'))?>"></script>
 <script src="<?=e(app_url('assets/shell-commerce.js'))?>"></script>
+<?php if($footerUser && $footerPage==='today.php'):?><script src="<?=e(app_url('assets/dashboard-agent-bar.js'))?>"></script><?php endif;?>
 <?php if($footerUser && $footerPage==='destination-report.php' && !empty($destinationId)):?>
 <script>(function(){const row=document.querySelector('.report-action-row');if(!row||row.querySelector('[data-show-me-there]'))return;const link=document.createElement('a');link.className='button secondary small';link.setAttribute('data-show-me-there','');link.href=<?=json_encode(app_url('vacation-yourself.php?destination_id='.(int)$destinationId))?>;link.textContent='Show Me There';row.appendChild(link);})();</script>
 <?php endif;?>
