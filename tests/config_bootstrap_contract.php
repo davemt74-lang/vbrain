@@ -9,7 +9,7 @@ if ($source === false) {
 }
 
 $required = [
-    "dirname(__DIR__) . '/config.php'",
+    "$rootDir . '/config.php'",
     "DOCUMENT_ROOT",
     "VACATION_BRAIN_CONFIG",
     "is_readable",
