@@ -9,12 +9,12 @@ if ($source === false) {
 }
 
 $required = [
-    "$rootDir . '/config.php'",
-    "DOCUMENT_ROOT",
-    "VACATION_BRAIN_CONFIG",
-    "is_readable",
-    "http_response_code(500)",
-    "Vacation Brain configuration not found",
+    "\$rootDir . '/config.php'",
+    'DOCUMENT_ROOT',
+    'VACATION_BRAIN_CONFIG',
+    'is_readable',
+    'http_response_code(500)',
+    'Vacation Brain configuration not found',
 ];
 
 foreach ($required as $needle) {
