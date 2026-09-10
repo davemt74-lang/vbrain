@@ -118,5 +118,5 @@ function nav_active(array $files): string { global $current; return in_array($cu
 </aside>
 <main class="app-main">
 <?php else: ?>
-<header class="site-header"><div class="shell nav-shell"><a class="brand" href="<?=e(app_url('index.php'))?>"><?php if($siteLogo):?><img class="brand-logo-image" src="<?=e($siteLogo)?>" alt="<?=e($siteName)?>"><?php else:?><span class="brand-mark">◒</span><span><?=e($siteName)?></span><?php endif;?></a><nav class="nav-actions" aria-label="Primary"><a href="<?=e(app_url('diagnosis.php'))?>">Self-Diagnosis</a><a href="<?=e(app_url('professional-assessment.php'))?>">Professional Assessment</a><a href="<?=e(app_url('shop.php'))?>">Shop</a><a class="text-button" href="<?=e(app_url('login.php'))?>">Log in</a></nav></div></header><main>
+<header class="site-header"><div class="shell nav-shell"><a class="brand" href="<?=e(app_url('index.php'))?>"><?php if($siteLogo):?><img class="brand-logo-image" src="<?=e($siteLogo)?>" alt="<?=e($siteName)?>"><?php else:?><span class="brand-mark">◒</span><span><?=e($siteName)?></span><?php endif;?></a><nav class="nav-actions" aria-label="Primary"><a href="<?=e(app_url('diagnosis.php'))?>">Self-Diagnosis</a><a href="<?=e(app_url('professional-assessment.php'))?>">Professional Assessment</a><a href="<?=e(app_url('shop.php'))?>">Shop</a></nav></div></header><main>
 <?php endif; ?>

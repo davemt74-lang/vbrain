@@ -24,6 +24,10 @@ if ($shellUser) {
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L20 8H7"></path><circle cx="10" cy="20" r="1"></circle><circle cx="18" cy="20" r="1"></circle></svg>
     <span class="vb-shell-badge <?=$shellCartCount===0?'is-zero':''?>" data-cart-count><?=$shellCartCount>99?'99+':$shellCartCount?></span>
   </button>
+
+  <?php if(!$shellUser):?>
+    <a class="vb-shell-login" href="<?=e(app_url('login.php'))?>">Log in</a>
+  <?php endif;?>
 </div>
 
 <div class="vb-shell-backdrop" data-shell-backdrop></div>

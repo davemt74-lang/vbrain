@@ -3,7 +3,7 @@ require __DIR__ . '/app/bootstrap.php';
 
 $title = 'Vacation Brain — AI-Assisted Travel Agent';
 $metaDescription = 'Vacation Brain is your AI-assisted travel agent for discovering destinations, matching trips to your mood, planning better vacations, and finding travel-inspired merch.';
-$pageStyles = ['assets/landing.css'];
+$pageStyles = ['assets/landing.css', 'assets/landing-merch-fix.css'];
 
 $heroAsset = '/assets/landing/hero-resort.webp';
 $phoneAsset = '/assets/landing/phone-ai-agent.webp';
@@ -60,17 +60,23 @@ if (db_table_exists('merch_catalog_products')) {
             $dbPrimary = trim((string)($product['image_url'] ?? ''));
             $dbSecondary = trim((string)($product['secondary_image_url'] ?? ''));
 
-            if ($preferredPrimary !== '' && local_media_exists($preferredPrimary, __DIR__)) {
-                $primary = $preferredPrimary;
-            } elseif ($fallbackPrimary !== '' && local_media_exists($fallbackPrimary, __DIR__)) {
-                $primary = $fallbackPrimary;
-            } else {
-                $primary = $dbPrimary;
+            // The catalog is authoritative. Bundled media is only a fallback for products
+            // that have not yet been given catalog images.
+            $primary = '';
+            foreach ([$dbPrimary, $preferredPrimary, $fallbackPrimary] as $candidate) {
+                if ($candidate !== '' && local_media_exists($candidate, __DIR__)) {
+                    $primary = $candidate;
+                    break;
+                }
             }
 
-            $secondary = ($knownSecondary !== '' && local_media_exists($knownSecondary, __DIR__)) ? $knownSecondary : $dbSecondary;
-            if ($primary !== '' && !local_media_exists($primary, __DIR__)) $primary = '';
-            if ($secondary !== '' && !local_media_exists($secondary, __DIR__)) $secondary = '';
+            $secondary = '';
+            foreach ([$dbSecondary, $knownSecondary] as $candidate) {
+                if ($candidate !== '' && local_media_exists($candidate, __DIR__)) {
+                    $secondary = $candidate;
+                    break;
+                }
+            }
 
             $product['display_primary'] = $primary !== '' ? media_url($primary) : '';
             $product['display_secondary'] = $secondary !== '' ? media_url($secondary) : '';
@@ -138,14 +144,19 @@ require __DIR__ . '/partials/header.php';
             $primary = (string)($product['display_primary'] ?? '');
             $secondary = (string)($product['display_secondary'] ?? '');
             $productUrl = app_url('shop-product.php?slug='.urlencode((string)$product['slug']));
-            $isHoodie = $secondary !== '';
+            $productType = strtolower(trim((string)($product['product_type'] ?? '')));
+            $isHoodie = str_contains($productType, 'hoodie') || $secondary !== '';
           ?>
           <article class="vb-product <?=$isHoodie ? 'vb-product--hoodie' : 'vb-product--hat'?>">
             <a class="vb-product-media" href="<?=e($productUrl)?>" aria-label="View <?=e((string)$product['name'])?>">
               <?php if ($primary !== ''): ?>
                 <?php if ($isHoodie): ?>
-                  <div class="vb-product-view"><span>Front</span><img src="<?=e($primary)?>" alt="<?=e((string)$product['name'])?> front" loading="lazy"></div>
-                  <div class="vb-product-view"><span>Back</span><img src="<?=e($secondary)?>" alt="<?=e((string)$product['name'])?> back" loading="lazy"></div>
+                  <div class="vb-product-view vb-product-view--swap <?=$secondary !== '' ? 'has-secondary' : ''?>">
+                    <img class="vb-product-image vb-product-image--front" src="<?=e($primary)?>" alt="<?=e((string)$product['name'])?> front" loading="lazy">
+                    <?php if ($secondary !== ''): ?>
+                      <img class="vb-product-image vb-product-image--back" src="<?=e($secondary)?>" alt="<?=e((string)$product['name'])?> back" loading="lazy">
+                    <?php endif; ?>
+                  </div>
                 <?php else: ?>
                   <div class="vb-product-view vb-product-view--single"><img src="<?=e($primary)?>" alt="<?=e((string)$product['name'])?>" loading="lazy"></div>
                 <?php endif; ?>
