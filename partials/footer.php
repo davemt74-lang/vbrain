@@ -1,14 +1,21 @@
 <?php $footerUser=current_user(); $footerPage=basename($_SERVER['PHP_SELF']??''); ?>
 </main>
-<?php if($footerUser && !in_array($footerPage,['agent.php','match-chat.php','today.php'],true)):?>
-<form class="global-agent" method="post" action="<?=e(app_url('agent.php'))?>"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input name="message" placeholder="Ask Vacation Brain…" aria-label="Ask Vacation Brain" required><button aria-label="Send">↑</button></form>
-<?php endif;?>
 <?php if(!$footerUser):?><footer class="site-footer"><div class="shell footer-shell"><div><strong>Vacation Brain</strong><div class="muted small">Daydream more. Work less.</div></div><div class="footer-copy"><?=e(diagnosis_disclaimer())?></div></div></footer><?php endif;?>
 <link rel="stylesheet" href="<?=e(app_url('assets/shell-commerce.css'))?>">
 <?php require __DIR__.'/shell-actions.php'; ?>
 <script src="<?=e(app_url('assets/app.js'))?>"></script>
 <script src="<?=e(app_url('assets/shell-commerce.js'))?>"></script>
-<?php if($footerUser && $footerPage==='today.php'):?><script src="<?=e(app_url('assets/dashboard-agent-bar.js'))?>"></script><?php endif;?>
+<?php if($footerUser && $footerPage!=='match-chat.php'):?>
+<script type="application/json" data-vb-agent-config><?=json_encode([
+    'csrf'=>csrf_token(),
+    'agent_url'=>app_url('agent.php'),
+    'context_api'=>app_url('api/dashboard-destination-context.php'),
+    'photos_url'=>app_url('photos.php'),
+    'vacation_yourself_url'=>app_url('vacation-yourself.php'),
+    'prefill'=>(string)($agentComposerPrefill??''),
+],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
+<script src="<?=e(app_url('assets/dashboard-agent-bar.js'))?>"></script>
+<?php endif;?>
 <?php if($footerUser && $footerPage==='destination-report.php' && !empty($destinationId)):?>
 <script>(function(){const row=document.querySelector('.report-action-row');if(!row||row.querySelector('[data-show-me-there]'))return;const link=document.createElement('a');link.className='button secondary small';link.setAttribute('data-show-me-there','');link.href=<?=json_encode(app_url('vacation-yourself.php?destination_id='.(int)$destinationId))?>;link.textContent='Show Me There';row.appendChild(link);})();</script>
 <?php endif;?>
