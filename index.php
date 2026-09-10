@@ -93,7 +93,7 @@ require __DIR__ . '/partials/header.php';
       <h1>Smarter Trips<br><em>Happier You</em></h1>
       <p>Vacation Brain is your AI-assisted travel agent, helping you discover amazing destinations, match trips to your mood, and plan better vacations — with less stress and more magic.</p>
       <div class="vb-hero-actions">
-        <a class="button vb-primary" href="<?=e(app_url('agent.php'))?>">Start Planning <span>→</span></a>
+        <a class="button vb-primary" href="<?=e(app_url('diagnosis.php'))?>">Start Planning <span>→</span></a>
         <a class="button vb-outline" href="#shop"><span class="vb-bag">▢</span> Explore Merch</a>
       </div>
       <div class="vb-hero-stats" aria-label="Vacation Brain benefits">
@@ -117,7 +117,7 @@ require __DIR__ . '/partials/header.php';
 
 <section class="vb-capabilities" aria-label="Vacation Brain travel tools">
   <div class="shell vb-capability-grid">
-    <a href="<?=e(app_url('matching.php'))?>"><span class="vb-cap-icon">◈</span><div><strong>Trip Matching</strong><small>Tell us your mood, and our AI finds destinations for you.</small></div></a>
+    <a href="<?=e(app_url('diagnosis.php'))?>"><span class="vb-cap-icon">◈</span><div><strong>Trip Matching</strong><small>Tell us your mood, and our AI finds destinations for you.</small></div></a>
     <a href="<?=e(app_url('destinations.php'))?>"><span class="vb-cap-icon">●</span><div><strong>Destination Ideas</strong><small>Curated places, hidden gems, and personalized suggestions.</small></div></a>
     <a href="#shop"><span class="vb-cap-icon vb-cap-icon--warm">▢</span><div><strong>Vacation Brain Merch</strong><small>Take the journey with premium gear for dreamers and doers.</small></div></a>
     <a href="<?=e(app_url('agent.php'))?>"><span class="vb-cap-icon">▣</span><div><strong>Personalized Itineraries</strong><small>Custom day-by-day plans based on your interests and travel style.</small></div></a>
@@ -179,7 +179,7 @@ require __DIR__ . '/partials/header.php';
     <div class="vb-closing-title"><span class="vb-eyebrow">MORE THAN A TRIP</span><h2>A Brighter You<br>Awaits</h2></div>
     <div class="vb-closing-copy">
       <p>Better destinations.<br>Brighter perspectives.<br>A more you.</p>
-      <a class="button vb-primary" href="<?=e(app_url('agent.php'))?>">Start Planning <span>→</span></a>
+      <a class="button vb-primary" href="<?=e(app_url('diagnosis.php'))?>">Start Planning <span>→</span></a>
     </div>
     <div class="vb-signpost" aria-hidden="true"><span>EXPLORE</span><span>WANDER</span><span>BELONG</span><span>BE BRIGHTER</span></div>
   </div>
