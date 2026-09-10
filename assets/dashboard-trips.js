@@ -34,6 +34,7 @@
     if(bounds.length>1)map.fitBounds(bounds,{padding:[32,32],maxZoom:9});
   }
   initMap();
+  document.addEventListener('vb:dashboard-main-shown',function(){if(map)setTimeout(function(){map.invalidateSize();},80);});
 
   if(locationBtn){locationBtn.addEventListener('click',function(){
     if(!navigator.geolocation){setStatus('Location is not available in this browser.');return;}
