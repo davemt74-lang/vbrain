@@ -1,2 +1,3 @@
 <?php
-require __DIR__.'/app/bootstrap.php';require_auth();redirect('shop.php');
+require __DIR__.'/app/bootstrap.php';
+redirect('shop.php');
