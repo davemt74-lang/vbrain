@@ -83,9 +83,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
       <div class="sidebar-divider"></div><a href="<?=e(app_url('today.php'))?>"><span>←</span>Back to Vacation Brain</a>
     <?php else: ?>
       <span class="sidebar-section-label">Vacation Brain</span>
-      <a class="<?=nav_active(['today.php'])?>" href="<?=e(app_url('today.php'))?>"><span>⌂</span>Today</a>
-      <a class="<?=nav_active(['swipe.php'])?>" href="<?=e(app_url('swipe.php'))?>"><span>↔</span>Swipe</a>
-      <a class="<?=nav_active(['escape.php','breaks.php','vacation-break.php','substitutions.php','substitution.php','weather-envy.php','generator.php','roast.php'])?>" href="<?=e(app_url('escape.php'))?>"><span>☼</span>Escape</a>
+      <a class="<?=nav_active(['today.php'])?>" href="<?=e(app_url('today.php'))?>"><span>⌂</span>Dashboard</a>
       <a class="<?=nav_active(['dream.php','dream-trip.php'])?>" href="<?=e(app_url('dream.php'))?>"><span>☁</span>Dream</a>
       <a class="<?=nav_active(['destinations.php'])?>" href="<?=e(app_url('destinations.php'))?>"><span>⌖</span>Destinations</a>
       <a class="<?=nav_active(['vacation-yourself.php','vacation-gallery.php'])?>" href="<?=e(app_url('vacation-gallery.php'))?>"><span>▧</span>My Fake Vacations</a>
