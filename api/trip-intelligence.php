@@ -8,10 +8,10 @@ try{
     if($_SERVER['REQUEST_METHOD']==='POST'){
         verify_csrf();$action=(string)($_POST['action']??'refresh');
         if($action==='refresh'){
-            $types=preg_split('/\s*,\s*/',(string)($_POST['types']??''),-1,PREG_SPLIT_NO_EMPTY)?:[];$data=$service->refresh($userId,$tripId,$types,true);echo json_encode(['ok'=>true,'snapshots'=>$data],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
+            $types=preg_split('/\s*,\s*/',(string)($_POST['types']??''),-1,PREG_SPLIT_NO_EMPTY)?:[];$data=$service->refresh($userId,$tripId,$types,true);$dashboard=$service->dashboard($userId,$tripId);(new TripAgentService(db()))->recordProactive($userId,$tripId,$dashboard);echo json_encode(['ok'=>true,'snapshots'=>$data],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
         }
         if($action==='add_item'){
-            $service->addFromSnapshot($userId,$tripId,(string)($_POST['data_type']??''),(string)($_POST['external_id']??''),($_POST['scheduled_date']??'')!==''?(string)$_POST['scheduled_date']:null,($_POST['daypart']??'')!==''?(string)$_POST['daypart']:null);echo json_encode(['ok'=>true]);exit;
+            $service->addFromSnapshot($userId,$tripId,(string)($_POST['data_type']??''),(string)($_POST['external_id']??''),($_POST['scheduled_date']??'')!==''?(string)$_POST['scheduled_date']:null,($_POST['daypart']??'')!==''?(string)$_POST['daypart']:null);$dashboard=$service->dashboard($userId,$tripId);(new TripAgentService(db()))->recordProactive($userId,$tripId,$dashboard);echo json_encode(['ok'=>true]);exit;
         }
         if($action==='schedule_item'){
             $service->scheduleItem($userId,$tripId,(int)($_POST['item_id']??0),($_POST['scheduled_date']??'')!==''?(string)$_POST['scheduled_date']:null,($_POST['daypart']??'')!==''?(string)$_POST['daypart']:null);echo json_encode(['ok'=>true]);exit;
