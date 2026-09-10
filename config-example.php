@@ -35,4 +35,28 @@ return [
         'pass' => 'CHANGE_ME',
         'charset' => 'utf8mb4',
     ],
+
+    /*
+     * Optional live travel-intelligence providers.
+     * Keys remain server-side and are never rendered into the browser.
+     * Environment variables with the names shown below are also supported.
+     *
+     * Visual Crossing: global forecast + historical weather. Its current free
+     * tier supports commercial use within the provider's quota.
+     * Ticketmaster: local live events via Discovery API.
+     * Google Places: restaurants, bars, attractions and other local businesses.
+     * Skyscanner: flight autosuggest + indicative airfare for approved partners.
+     *
+     * U.S. weather automatically falls back to api.weather.gov when destination
+     * coordinates are available, even without a Visual Crossing key.
+     */
+    'travel' => [
+        'visual_crossing_key' => '', // or VISUAL_CROSSING_API_KEY
+        'ticketmaster_key' => '',    // or TICKETMASTER_API_KEY
+        'google_places_key' => '',   // or GOOGLE_PLACES_API_KEY
+        'skyscanner_key' => '',      // or SKYSCANNER_API_KEY
+        'market' => 'US',
+        'locale' => 'en-US',
+        'currency' => 'USD',
+    ],
 ];
