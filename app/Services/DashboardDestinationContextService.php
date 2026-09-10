@@ -30,6 +30,12 @@ final class DashboardDestinationContextService
         $type = $this->clean((string)($input['destination_type'] ?? 'destination'), 40) ?: 'destination';
         $url = $this->clean((string)($input['destination_url'] ?? ''), 1500) ?: null;
         $catalogId = max(0, (int)($input['destination_catalog_id'] ?? 0)) ?: null;
+        if (!$catalogId && db_table_exists('destination_catalog')) {
+            $stmt=$this->pdo->prepare("SELECT id FROM destination_catalog WHERE LOWER(name)=LOWER(?) AND status='active' LIMIT 1");
+            $stmt->execute([$name]);
+            $resolved=(int)($stmt->fetchColumn() ?: 0);
+            if ($resolved > 0) $catalogId=$resolved;
+        }
         $meta = [
             'location' => $this->clean((string)($input['location'] ?? ''), 255),
             'subtitle' => $this->clean((string)($input['subtitle'] ?? ''), 500),
