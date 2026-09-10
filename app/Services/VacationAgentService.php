@@ -61,7 +61,9 @@ final class VacationAgentService
             $traitText=implode(', ',array_map(fn($t)=>(string)($t['name']??'Trait').' '.(int)($t['score']??50).'%', $traits));
             $researchContext='';
             try{$researchContext=(new DestinationResearchService($this->pdo))->agentContext($userId,2);}catch(Throwable){}
-            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($researchContext!==''?"\n\n".$researchContext:'');
+            $dashboardContext='';
+            try{$dashboardContext=(new DashboardDestinationContextService($this->pdo))->promptContext($userId);}catch(Throwable){}
+            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($researchContext!==''?"\n\n".$researchContext:'').$dashboardContext;
             return (new AiProviderService($this->pdo))->generateText($system,$message,$userId,'agent_chat',450);
         }catch(Throwable){return null;}
     }
@@ -70,11 +72,16 @@ final class VacationAgentService
     {
         $q=strtolower($message);$profile=(new VacationProfileService($this->pdo))->snapshot($userId);$traits=$profile['traits'];
         $v=fn(string $slug)=>(int)($traits[$slug]['score']??50);
+        $selected=[];try{$selected=(new DashboardDestinationContextService($this->pdo))->names($userId);}catch(Throwable){}
+        if($selected && (str_contains($q,'compare')||str_contains($q,'selected')||str_contains($q,'locations'))){
+            return 'Your selected destination context is '.implode(', ',$selected).'. The AI provider is unavailable right now, so I can keep those places selected but I cannot produce a reliable live comparison until the configured agent model responds.';
+        }
         if(str_contains($q,'roast'))return $profile['roasts'][0]??'You have successfully outsourced being judged for wanting a vacation.';
         if(str_contains($q,'learned')||str_contains($q,'know about me')||str_contains($q,'profile')){
             $top=array_slice(array_values($traits),0,3);$bits=array_map(fn($t)=>$t['name'].' '.(int)$t['score'].'%',$top);return 'Current diagnosis: '.$profile['archetype']['name'].'. Strong signals: '.implode(', ',$bits).'. Translation: '.$profile['archetype']['description'];
         }
         if(str_contains($q,'where should')||str_contains($q,'where do i')||str_contains($q,'destination')){
+            if($selected)return 'You explicitly selected '.implode(', ',$selected).'. I would start there before wandering into unrelated recommendations.';
             if($v('beach')>70||$v('pool')>75)return 'Start with warm beach/resort destinations where the pool is a feature, not an afterthought. Your profile is making a very strong argument against complicated sightseeing before lunch.';
             if($v('city_preference')>70&&$v('food')>65)return 'Your profile wants a walkable city with enough food to turn “sightseeing” into a sequence of meals. I would daydream in that direction first.';
             if($v('adventure')>70)return 'Your profile wants somewhere with a story attached: water, mountains, trails, unusual activities, or a decision your family will question later.';
