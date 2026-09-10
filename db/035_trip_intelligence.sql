@@ -47,6 +47,30 @@ CREATE TABLE trip_intelligence_snapshots (
   CONSTRAINT fk_trip_snapshot_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE travel_provider_settings (
+  provider VARCHAR(64) NOT NULL,
+  display_name VARCHAR(120) NOT NULL,
+  api_key_encrypted TEXT NULL,
+  enabled TINYINT(1) NOT NULL DEFAULT 0,
+  settings_json JSON NULL,
+  last_test_status VARCHAR(24) NOT NULL DEFAULT 'never',
+  last_tested_at DATETIME NULL,
+  last_error VARCHAR(500) NULL,
+  updated_by BIGINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (provider),
+  KEY idx_travel_provider_enabled (enabled,provider),
+  CONSTRAINT fk_travel_provider_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO travel_provider_settings (provider,display_name,enabled,settings_json) VALUES
+  ('visual_crossing','Visual Crossing',0,JSON_OBJECT()),
+  ('ticketmaster','Ticketmaster Discovery',0,JSON_OBJECT()),
+  ('google_places','Google Places',0,JSON_OBJECT()),
+  ('skyscanner','Skyscanner',0,JSON_OBJECT('market','US','locale','en-US','currency','USD'))
+ON DUPLICATE KEY UPDATE display_name=VALUES(display_name);
+
 -- Match legacy dream destinations to the canonical owner-managed catalog where possible.
 UPDATE dream_trips dt
 JOIN destination_catalog dc ON LOWER(TRIM(dc.name))=LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(dt.metadata_json,'$.destination_name'))))
