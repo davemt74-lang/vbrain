@@ -47,7 +47,7 @@ $intel=$read('app/Services/TripIntelligenceService.php');
 foreach(['weather','events','places','flights','trip_intelligence_snapshots','addFromSnapshot','scheduleItem','expires_at'] as $needle){if(strpos($intel,$needle)===false){fwrite(STDERR,"Trip intelligence orchestrator missing {$needle}\n");exit(1);}}
 
 $supervisor=$read('app/Services/TripSupervisorService.php');
-foreach(['recordProactive','activeResult','Flight decision window is active','What changed','Lowest indicative fare','budget-over','lodging-partner'] as $needle){if(strpos($supervisor,$needle)===false){fwrite(STDERR,"Trip supervisor missing {$needle}\n");exit(1);}}
+foreach(['recordProactive','activeResult','changeDetail','Flight decision window is active','Lowest indicative fare','budget-over','lodging-partner'] as $needle){if(strpos($supervisor,$needle)===false){fwrite(STDERR,"Trip supervisor missing {$needle}\n");exit(1);}}
 
 $agent=$read('app/Services/TripAgentService.php');
 foreach(["['overview','weather','flights','events','local','itinerary','budget']",'allowed data scope','Never invent live weather','Lodging is a paid-partnership surface','trip_agent_messages','trip_agent_'] as $needle){if(strpos($agent,$needle)===false){fwrite(STDERR,"Trip agent scoping missing {$needle}\n");exit(1);}}
