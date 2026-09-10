@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class DiagnosisService
 {
+    public const MIN_ANSWERS = 10;
+
     public function __construct(private PDO $pdo) {}
 
     public function deck(): array
@@ -38,42 +40,62 @@ final class DiagnosisService
         $questions = $this->questions();
         $valid = [];
         $questionByChoice = [];
-        $minPoints = 0;
-        $maxPoints = 0;
+        $ranges = [];
+
         foreach ($questions as $question) {
+            $qid = (int)$question['id'];
             $points = [];
             foreach ($question['choices'] as $choice) {
-                $valid[(int)$choice['id']] = $choice;
-                $questionByChoice[(int)$choice['id']] = (int)$question['id'];
+                $choiceId = (int)$choice['id'];
+                $valid[$choiceId] = $choice;
+                $questionByChoice[$choiceId] = $qid;
                 $meta = json_decode((string)$choice['metadata_json'], true) ?: [];
                 $points[] = (int)($meta['brain_points'] ?? 0);
             }
-            $minPoints += min($points ?: [0]);
-            $maxPoints += max($points ?: [0]);
+            $ranges[$qid] = [
+                'min' => min($points ?: [0]),
+                'max' => max($points ?: [0]),
+            ];
         }
 
         $ids = array_values(array_unique(array_map('intval', $answerChoiceIds)));
         $answeredQuestions = [];
+        $acceptedIds = [];
         $raw = 0;
+
         foreach ($ids as $choiceId) {
             if (!isset($valid[$choiceId])) continue;
             $qid = $questionByChoice[$choiceId];
             if (isset($answeredQuestions[$qid])) continue;
+
             $answeredQuestions[$qid] = true;
+            $acceptedIds[] = $choiceId;
             $meta = json_decode((string)$valid[$choiceId]['metadata_json'], true) ?: [];
             $raw += (int)($meta['brain_points'] ?? 0);
         }
-        if (count($answeredQuestions) !== count($questions)) {
-            throw new InvalidArgumentException('Please answer every diagnosis card.');
+
+        $answeredCount = count($answeredQuestions);
+        $totalQuestions = count($questions);
+        if ($answeredCount < self::MIN_ANSWERS) {
+            throw new InvalidArgumentException('Answer at least '.self::MIN_ANSWERS.' diagnosis cards before submitting.');
+        }
+
+        $minPoints = 0;
+        $maxPoints = 0;
+        foreach (array_keys($answeredQuestions) as $qid) {
+            $range = $ranges[(int)$qid] ?? ['min' => 0, 'max' => 0];
+            $minPoints += (int)$range['min'];
+            $maxPoints += (int)$range['max'];
         }
 
         $range = max(1, $maxPoints - $minPoints);
         $ratio = max(0, min(1, ($raw - $minPoints) / $range));
         $diagnosisScore = (int)round(20 + ($ratio * 75));
         $brainScore = 100 + ($diagnosisScore * 8);
-        $traits = $this->traitSnapshot($ids);
+        $traits = $this->traitSnapshot($acceptedIds);
         $level = $this->level($diagnosisScore);
         $prescription = $this->prescription($traits);
+        $confidence = $totalQuestions > 0 ? (int)round(($answeredCount / $totalQuestions) * 100) : 100;
 
         return [
             'diagnosis_score' => $diagnosisScore,
@@ -83,8 +105,11 @@ final class DiagnosisService
             'summary' => $level['summary'],
             'prescription' => $prescription,
             'traits' => $traits,
-            'answers' => $ids,
+            'answers' => $acceptedIds,
             'raw_points' => $raw,
+            'answered_count' => $answeredCount,
+            'question_count' => $totalQuestions,
+            'diagnosis_confidence' => max(1, min(100, $confidence)),
         ];
     }
 
