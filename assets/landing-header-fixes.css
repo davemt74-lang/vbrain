@@ -1,0 +1,2 @@
+/* Landing header cleanup: keep diagnosis CTAs in page content, not the top navigation. */
+body[data-page="index.php"] .vbe-nav-cta{display:none!important}
