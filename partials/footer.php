@@ -2,6 +2,7 @@
 </main>
 <?php if(!$footerUser):?><footer class="site-footer"><div class="shell footer-shell"><div><strong>Vacation Brain</strong><div class="muted small">Daydream more. Work less.</div></div><div class="footer-copy"><?=e(diagnosis_disclaimer())?></div></div></footer><?php endif;?>
 <link rel="stylesheet" href="<?=e(app_url('assets/shell-commerce.css'))?>">
+<?php if($footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-agent-tabs.css'))?>"><?php endif;?>
 <?php require __DIR__.'/shell-actions.php'; ?>
 <script src="<?=e(app_url('assets/app.js'))?>"></script>
 <script src="<?=e(app_url('assets/shell-commerce.js'))?>"></script>
@@ -11,11 +12,20 @@ if($footerAgentPrefill==='' && $footerPage==='agent.php'){
     $footerPromptMap=['profile'=>'What have you learned about me?','diagnosis'=>'Show me what my Vacation Brain would prescribe.','gallery'=>'Show my fake vacations.'];
     $footerAgentPrefill=$footerPromptMap[(string)($_GET['prompt']??'')]??'';
 }
+$footerAgentAction=(string)($agentComposerActionUrl??app_url('agent.php'));
+$footerAgentFields=is_array($agentComposerFields??null)?$agentComposerFields:[];
+$footerAgentContextLabel=trim((string)($agentComposerContextLabel??''));
+$footerAgentPlaceholder=trim((string)($agentComposerPlaceholder??'Ask Vacation Brain…'));
+$footerAgentTaskMode=trim((string)($agentComposerTaskMode??'default'));
 ?>
 <link rel="stylesheet" href="<?=e(app_url('assets/dashboard-agent-bar.css'))?>" data-vb-agent-bar-style>
 <script type="application/json" data-vb-agent-config><?=json_encode([
     'csrf'=>csrf_token(),
-    'agent_url'=>app_url('agent.php'),
+    'agent_url'=>$footerAgentAction,
+    'extra_fields'=>$footerAgentFields,
+    'fixed_context_label'=>$footerAgentContextLabel,
+    'placeholder'=>$footerAgentPlaceholder,
+    'task_mode'=>$footerAgentTaskMode,
     'context_api'=>app_url('api/dashboard-destination-context.php'),
     'photos_url'=>app_url('photos.php'),
     'vacation_yourself_url'=>app_url('vacation-yourself.php'),
