@@ -31,6 +31,9 @@ jobs:
       - name: Check admin permissions contract
         run: php tests/permissions_contract.php
 
+      - name: Check config bootstrap contract
+        run: php tests/config_bootstrap_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
