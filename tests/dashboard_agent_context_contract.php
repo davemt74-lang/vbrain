@@ -12,7 +12,7 @@ foreach(['data-vb-agent-config','data-agent-plus','Compare locations','Plan a tr
 foreach(['.vb-dashboard-agent-dock','.vb-trip-select','.vb-agent-task-modal','.vb-dashboard-agent-plus','.vb-dashboard-agent-context[hidden]'] as $needle){if(strpos($css,$needle)===false){fwrite(STDERR,"Unified agent CSS missing {$needle}\n");exit(1);}}
 foreach(['data-vb-agent-config','dashboard-agent-bar.css','dashboard-agent-bar.js','context_api','agent_url','prefill'] as $needle){if(strpos($footer,$needle)===false){fwrite(STDERR,"Footer unified composer contract missing {$needle}\n");exit(1);}}
 if(strpos($footer,'<form class="global-agent"')!==false){fwrite(STDERR,"Legacy global-agent composer is still rendered by footer.\n");exit(1);}
-if(strpos($footer,"$footerPage!=='match-chat.php'")===false){fwrite(STDERR,"Unified composer exclusion for match chat is missing.\n");exit(1);}
+if(strpos($footer,"\$footerPage!=='match-chat.php'")===false){fwrite(STDERR,"Unified composer exclusion for match chat is missing.\n");exit(1);}
 foreach(['dashboard_destination_context','is_selected','is_watching','promptContext'] as $needle){if(strpos($service,$needle)===false){fwrite(STDERR,"Destination context service missing {$needle}\n");exit(1);}}
 if(strpos($agent,'DashboardDestinationContextService')===false){fwrite(STDERR,"VacationAgentService does not consume dashboard destination context.\n");exit(1);}
 echo "Unified Vacation Brain agent composer contract OK\n";
