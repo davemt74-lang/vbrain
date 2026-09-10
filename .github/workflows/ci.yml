@@ -43,6 +43,9 @@ jobs:
       - name: Check dashboard trip contract
         run: php tests/dashboard_trip_contract.php
 
+      - name: Check dashboard agent tabs contract
+        run: php tests/dashboard_agent_tabs_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
@@ -50,15 +53,16 @@ jobs:
           node --check assets/app.js
           node --check assets/shell-commerce.js
           node --check assets/dashboard-trips.js
+          node --check assets/dashboard-tabs.js
 
       - name: Verify ordered migrations
         shell: bash
         run: |
           set -euo pipefail
           test -f db/001_schema.sql
-          test -f db/031_dashboard_trip_suggestions.sql
+          test -f db/032_dashboard_agent_tabs.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 31
+          test "$COUNT" -eq 32
 
       - name: Validate WebP media
         shell: bash
@@ -83,11 +87,14 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'upgrade.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'config-example.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'api/shell-state.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'api/dashboard-tabs.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/shell-commerce.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/landing-merch-fix.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-trips.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-trips.js'
-          unzip -l vacation-brain-deploy.zip | grep -q 'db/031_dashboard_trip_suggestions.sql'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-tabs.css'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-tabs.js'
+          unzip -l vacation-brain-deploy.zip | grep -q 'db/032_dashboard_agent_tabs.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-trucker-hat.webp'
