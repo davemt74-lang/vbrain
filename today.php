@@ -77,69 +77,141 @@ function dashboard_review_count(int $count): string
     return number_format($count);
 }
 
+$tabsReady = db_table_exists('dashboard_agent_tabs');
+$agentTabs = [];
+if ($tabsReady) {
+    $stmt = $pdo->prepare('SELECT id,name,purpose,sort_order FROM dashboard_agent_tabs WHERE user_id=? ORDER BY sort_order ASC,id ASC');
+    $stmt->execute([$userId]);
+    $agentTabs = $stmt->fetchAll() ?: [];
+}
+$requestedAgentTab = trim((string)($_GET['agent_tab'] ?? 'main'));
+$activeAgentTab = 'main';
+foreach ($agentTabs as $agentTab) {
+    if ((string)$agentTab['id'] === $requestedAgentTab) {
+        $activeAgentTab = (string)$agentTab['id'];
+        break;
+    }
+}
+$agentActions = [
+    ['name'=>'Plan a Trip','copy'=>'Start a new trip and shape the destination, dates, pace, and priorities.','url'=>app_url('dream.php')],
+    ['name'=>'Create a Photo Album','copy'=>'Build a vacation album from saved or generated travel photos.','url'=>app_url('vacation-gallery.php')],
+    ['name'=>'Research a Destination','copy'=>'Create a detailed destination report with lodging, weather, food, and things to do.','url'=>app_url('destination-report.php')],
+    ['name'=>'Find a Weekend Getaway','copy'=>'Look for a short escape that fits your location and available time.','url'=>app_url('destinations.php')],
+    ['name'=>'Build an Itinerary','copy'=>'Turn a destination idea into a practical day-by-day travel plan.','url'=>app_url('agent.php')],
+    ['name'=>'Create a Fake Vacation','copy'=>'Generate a playful vacation concept and add it to your Vacation Brain.','url'=>app_url('vacation-yourself.php')],
+];
+
 require __DIR__.'/partials/header.php';
 ?>
 <section class="dashboard vb-trip-dashboard">
-  <div class="shell">
-    <section class="vb-dashboard-section vb-local-section" data-local-section>
-      <div class="vb-dashboard-section-head">
-        <div class="vb-dashboard-title-wrap"><span class="vb-dashboard-icon">🚗</span><div><h1>Local Day Trips</h1><p>Quick escapes. Big smiles. Adventure is closer than you think.</p></div></div>
-        <button class="button secondary small vb-map-toggle" type="button" data-map-toggle aria-expanded="true">Hide map <span>⌃</span></button>
+  <div class="shell" data-agent-workspace data-tabs-ready="<?=$tabsReady?'1':'0'?>" data-active-tab="<?=e($activeAgentTab)?>" data-api-url="<?=e(app_url('api/dashboard-tabs.php'))?>" data-page-url="<?=e(app_url('today.php'))?>">
+    <input type="hidden" data-agent-csrf value="<?=e(csrf_token())?>">
+
+    <div class="vb-agent-tabbar" role="tablist" aria-label="Vacation Brain workspaces">
+      <div class="vb-agent-tab <?=$activeAgentTab==='main'?'active':''?>" data-agent-tab data-tab-key="main" data-tab-name="Main" data-tab-purpose="">
+        <button type="button" class="vb-agent-tab-select" data-agent-tab-select role="tab" aria-selected="<?=$activeAgentTab==='main'?'true':'false'?>">Main</button>
+        <button type="button" class="vb-agent-tab-settings" data-agent-tab-settings aria-label="Main tab settings">⚙</button>
       </div>
-      <div class="vb-local-layout" data-local-layout>
-        <div class="vb-map-card" data-map-card>
-          <div id="vb-daytrip-map" class="vb-daytrip-map" aria-label="Map of nearby day trips"></div>
-          <button class="vb-use-location" type="button" data-use-location><span>⌖</span> Use my location</button>
-          <div class="vb-map-status" data-map-status aria-live="polite"></div>
+      <?php foreach($agentTabs as $agentTab): $tabKey=(string)$agentTab['id'];?>
+      <div class="vb-agent-tab <?=$activeAgentTab===$tabKey?'active':''?>" data-agent-tab data-tab-key="<?=e($tabKey)?>" data-tab-name="<?=e((string)$agentTab['name'])?>" data-tab-purpose="<?=e((string)($agentTab['purpose'] ?? ''))?>">
+        <button type="button" class="vb-agent-tab-select" data-agent-tab-select role="tab" aria-selected="<?=$activeAgentTab===$tabKey?'true':'false'?>"><?=e((string)$agentTab['name'])?></button>
+        <button type="button" class="vb-agent-tab-settings" data-agent-tab-settings aria-label="<?=e((string)$agentTab['name'])?> settings">⚙</button>
+      </div>
+      <?php endforeach;?>
+      <button type="button" class="vb-agent-tab-add" data-agent-add aria-label="Create a new agent tab">+</button>
+    </div>
+
+    <div class="vb-agent-pane" data-agent-pane="main" <?=$activeAgentTab==='main'?'':'hidden'?>>
+      <section class="vb-dashboard-section vb-local-section" data-local-section>
+        <div class="vb-dashboard-section-head">
+          <div class="vb-dashboard-title-wrap"><div><h1>Local Day Trips</h1><p>Quick escapes. Big smiles. Adventure is closer than you think.</p></div></div>
+          <button class="button secondary small vb-map-toggle" type="button" data-map-toggle aria-expanded="true">Hide map <span>⌃</span></button>
         </div>
-        <div class="vb-local-cards">
-          <?php foreach(array_slice($localTrips,0,4) as $trip):
-            $image = trim((string)($trip['image_url'] ?? ''));
-            $url = app_url('destination-report.php?q='.urlencode((string)($trip['search_query'] ?? $trip['name'])));
+        <div class="vb-local-layout" data-local-layout>
+          <div class="vb-map-card" data-map-card>
+            <div id="vb-daytrip-map" class="vb-daytrip-map" aria-label="Map of nearby day trips"></div>
+            <button class="vb-use-location" type="button" data-use-location><span>⌖</span> Use my location</button>
+            <div class="vb-map-status" data-map-status aria-live="polite"></div>
+          </div>
+          <div class="vb-local-cards">
+            <?php foreach(array_slice($localTrips,0,4) as $trip):
+              $image = trim((string)($trip['image_url'] ?? ''));
+              $url = app_url('destination-report.php?q='.urlencode((string)($trip['search_query'] ?? $trip['name'])));
+            ?>
+            <article class="vb-trip-card vb-local-card" data-trip-card data-lat="<?=e((string)($trip['latitude'] ?? ''))?>" data-lng="<?=e((string)($trip['longitude'] ?? ''))?>">
+              <a class="vb-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>>
+                <span class="vb-trip-time" data-trip-time><?=e((string)($trip['duration_text'] ?? 'Nearby'))?></span><span class="vb-trip-heart" aria-hidden="true">♡</span>
+              </a>
+              <div class="vb-trip-card-body"><h2><?=e((string)$trip['name'])?></h2><p><?=e((string)($trip['subtitle'] ?? $trip['location_text'] ?? ''))?></p><div class="vb-trip-rating"><span>★</span> <?=number_format((float)($trip['rating'] ?? 4.7),1)?> <small>(<?=e(dashboard_review_count((int)($trip['review_count'] ?? 0)))?>)</small></div><a class="vb-trip-details" href="<?=e($url)?>">View Details</a></div>
+            </article>
+            <?php endforeach;?>
+            <?php if(!$localTrips):?><div class="dashboard-card vb-trip-empty"><h2>No local day trips yet.</h2><p class="muted">Turn on Sample Data or add local suggestions to the dashboard catalog.</p></div><?php endif;?>
+          </div>
+        </div>
+      </section>
+
+      <section class="vb-dashboard-section vb-scroll-section">
+        <div class="vb-dashboard-section-head compact"><div class="vb-dashboard-title-wrap"><div><h2>Weekend Getaways</h2><p>Just a couple of days. A whole new you.</p></div></div><a class="vb-see-more" href="<?=e(app_url('destinations.php'))?>">See more getaways →</a></div>
+        <div class="vb-wide-trip-grid">
+          <?php foreach(array_slice($weekendTrips,0,4) as $trip):
+            $image=trim((string)($trip['image_url'] ?? ''));
+            $url=app_url('destination-report.php?q='.urlencode((string)($trip['search_query'] ?? $trip['name'])));
           ?>
-          <article class="vb-trip-card vb-local-card" data-trip-card data-lat="<?=e((string)($trip['latitude'] ?? ''))?>" data-lng="<?=e((string)($trip['longitude'] ?? ''))?>">
-            <a class="vb-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>>
-              <span class="vb-trip-time" data-trip-time><?=e((string)($trip['duration_text'] ?? 'Nearby'))?></span><span class="vb-trip-heart" aria-hidden="true">♡</span>
-            </a>
-            <div class="vb-trip-card-body"><h2><?=e((string)$trip['name'])?></h2><p><?=e((string)($trip['subtitle'] ?? $trip['location_text'] ?? ''))?></p><div class="vb-trip-rating"><span>★</span> <?=number_format((float)($trip['rating'] ?? 4.7),1)?> <small>(<?=e(dashboard_review_count((int)($trip['review_count'] ?? 0)))?>)</small></div><a class="vb-trip-details" href="<?=e($url)?>">View Details</a></div>
-          </article>
+          <article class="vb-wide-trip-card"><a class="vb-wide-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>><span class="vb-trip-heart" aria-hidden="true">♡</span></a><div class="vb-wide-trip-body"><h3><?=e((string)$trip['name'])?></h3><div class="vb-wide-meta"><span>→ <?=e((string)($trip['duration_text'] ?? 'Weekend'))?></span><span><?=e((string)($trip['subtitle'] ?? 'Explore · Relax'))?></span><span class="rating">★ <?=number_format((float)($trip['rating'] ?? 4.6),1)?> <small>(<?=e(dashboard_review_count((int)($trip['review_count'] ?? 0)))?>)</small></span></div></div></article>
           <?php endforeach;?>
-          <?php if(!$localTrips):?><div class="dashboard-card vb-trip-empty"><h2>No local day trips yet.</h2><p class="muted">Turn on Sample Data or add local suggestions to the dashboard catalog.</p></div><?php endif;?>
+          <?php if(!$weekendTrips):?><div class="dashboard-card vb-trip-empty"><h2>No weekend getaways yet.</h2><p class="muted">Sample Data can populate this section while the live catalog grows.</p></div><?php endif;?>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="vb-dashboard-section vb-scroll-section">
-      <div class="vb-dashboard-section-head compact"><div class="vb-dashboard-title-wrap"><span class="vb-dashboard-icon blue">🧳</span><div><h2>Weekend Getaways</h2><p>Just a couple of days. A whole new you.</p></div></div><a class="vb-see-more" href="<?=e(app_url('destinations.php'))?>">See more getaways →</a></div>
-      <div class="vb-wide-trip-grid">
-        <?php foreach(array_slice($weekendTrips,0,4) as $trip):
-          $image=trim((string)($trip['image_url'] ?? ''));
-          $url=app_url('destination-report.php?q='.urlencode((string)($trip['search_query'] ?? $trip['name'])));
-        ?>
-        <article class="vb-wide-trip-card"><a class="vb-wide-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>><span class="vb-trip-heart" aria-hidden="true">♡</span></a><div class="vb-wide-trip-body"><h3><?=e((string)$trip['name'])?></h3><div class="vb-wide-meta"><span>→ <?=e((string)($trip['duration_text'] ?? 'Weekend'))?></span><span><?=e((string)($trip['subtitle'] ?? 'Explore · Relax'))?></span><span class="rating">★ <?=number_format((float)($trip['rating'] ?? 4.6),1)?> <small>(<?=e(dashboard_review_count((int)($trip['review_count'] ?? 0)))?>)</small></span></div></div></article>
+      <section class="vb-dashboard-section vb-scroll-section">
+        <div class="vb-dashboard-section-head compact"><div class="vb-dashboard-title-wrap"><div><h2>Multi-Day Excursions</h2><p>Go further. Stay longer. Make it epic.</p></div></div><a class="vb-see-more" href="<?=e(app_url('destinations.php'))?>">See more excursions →</a></div>
+        <div class="vb-wide-trip-grid">
+          <?php foreach(array_slice($multiDayTrips,0,4) as $trip):
+            $image=trim((string)($trip['hero_image_url'] ?? ''));
+            $url=app_url('destination-report.php?destination_id='.(int)$trip['id']);
+            $meta=(string)($trip['best_for'] ?? $trip['vibe'] ?? 'Adventure · Escape');
+          ?>
+          <article class="vb-wide-trip-card"><a class="vb-wide-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>><span class="vb-trip-heart" aria-hidden="true">♡</span></a><div class="vb-wide-trip-body"><h3><?=e((string)$trip['name'])?></h3><div class="vb-wide-meta"><span>→ 5–7 days</span><span><?=e($meta)?></span><span class="rating">★ 4.8 <small>(sample)</small></span></div></div></article>
+          <?php endforeach;?>
+          <?php if(!$multiDayTrips):?><div class="dashboard-card vb-trip-empty"><h2>No multi-day excursions yet.</h2><p class="muted">Add destinations to the catalog or enable Sample Data.</p></div><?php endif;?>
+        </div>
+      </section>
+
+      <section class="vb-dashboard-cta"><div class="vb-cta-icon">✈</div><div><h2>Not sure where to go?</h2><p>Let Vacation Brain diagnose your perfect escape.</p></div><a class="button primary" href="<?=e(app_url('diagnosis.php'))?>">Take the Vacation Brain Diagnosis <span>→</span></a></section>
+    </div>
+
+    <?php foreach($agentTabs as $agentTab): $tabKey=(string)$agentTab['id'];?>
+    <section class="vb-agent-pane vb-agent-workspace-pane" data-agent-pane="<?=e($tabKey)?>" <?=$activeAgentTab===$tabKey?'':'hidden'?>>
+      <div class="vb-agent-canvas-head"><div><span class="eyebrow">Vacation Brain Agent</span><h1><?=e((string)$agentTab['name'])?></h1><p><?=e(trim((string)($agentTab['purpose'] ?? '')) ?: 'Choose an action to give this agent something to work on.')?></p></div><button type="button" class="button secondary small" data-agent-tab-settings data-agent-settings-for="<?=e($tabKey)?>">Tab settings</button></div>
+      <div class="vb-agent-action-grid">
+        <?php foreach($agentActions as $action):?>
+        <a class="vb-agent-action-card" href="<?=e($action['url'])?>"><strong><?=e($action['name'])?></strong><span><?=e($action['copy'])?></span><b>Start →</b></a>
         <?php endforeach;?>
-        <?php if(!$weekendTrips):?><div class="dashboard-card vb-trip-empty"><h2>No weekend getaways yet.</h2><p class="muted">Sample Data can populate this section while the live catalog grows.</p></div><?php endif;?>
       </div>
+      <div class="vb-agent-empty-state"><strong>Agent activity will appear here.</strong><span>We are establishing the workspace and actions first; live planning jobs and agent activity can plug into this canvas next.</span></div>
     </section>
-
-    <section class="vb-dashboard-section vb-scroll-section">
-      <div class="vb-dashboard-section-head compact"><div class="vb-dashboard-title-wrap"><span class="vb-dashboard-icon purple">✈</span><div><h2>Multi-Day Excursions</h2><p>Go further. Stay longer. Make it epic.</p></div></div><a class="vb-see-more" href="<?=e(app_url('destinations.php'))?>">See more excursions →</a></div>
-      <div class="vb-wide-trip-grid">
-        <?php foreach(array_slice($multiDayTrips,0,4) as $trip):
-          $image=trim((string)($trip['hero_image_url'] ?? ''));
-          $url=app_url('destination-report.php?destination_id='.(int)$trip['id']);
-          $meta=(string)($trip['best_for'] ?? $trip['vibe'] ?? 'Adventure · Escape');
-        ?>
-        <article class="vb-wide-trip-card"><a class="vb-wide-trip-image <?=$image===''?'is-placeholder':''?>" href="<?=e($url)?>"<?php if($image!==''):?> style="background-image:url('<?=e(media_url($image))?>')"<?php endif;?>><span class="vb-trip-heart" aria-hidden="true">♡</span></a><div class="vb-wide-trip-body"><h3><?=e((string)$trip['name'])?></h3><div class="vb-wide-meta"><span>→ 5–7 days</span><span><?=e($meta)?></span><span class="rating">★ 4.8 <small>(sample)</small></span></div></div></article>
-        <?php endforeach;?>
-        <?php if(!$multiDayTrips):?><div class="dashboard-card vb-trip-empty"><h2>No multi-day excursions yet.</h2><p class="muted">Add destinations to the catalog or enable Sample Data.</p></div><?php endif;?>
-      </div>
-    </section>
-
-    <section class="vb-dashboard-cta"><div class="vb-cta-icon">✈</div><div><h2>Not sure where to go?</h2><p>Let Vacation Brain diagnose your perfect escape.</p></div><a class="button primary" href="<?=e(app_url('diagnosis.php'))?>">Take the Vacation Brain Diagnosis <span>→</span></a></section>
+    <?php endforeach;?>
   </div>
 </section>
+
+<div class="vb-tab-drawer-backdrop" data-tab-drawer-backdrop></div>
+<aside class="vb-tab-settings-drawer" data-tab-settings-drawer aria-hidden="true" aria-label="Tab settings">
+  <div class="vb-tab-drawer-head"><div><span class="eyebrow">Workspace</span><h2 data-tab-drawer-title>Tab settings</h2></div><button type="button" class="vb-tab-drawer-close" data-tab-drawer-close aria-label="Close tab settings">×</button></div>
+  <p class="muted" data-tab-drawer-intro>Manage this Vacation Brain tab.</p>
+  <div class="vb-tab-error" data-tab-error hidden></div>
+  <div class="vb-main-tab-note" data-main-tab-note hidden>The Main tab is permanent and contains your default dashboard. It cannot be deleted.</div>
+  <form data-tab-settings-form hidden>
+    <input type="hidden" name="action" value="update">
+    <input type="hidden" name="tab_id" value="">
+    <label>Agent name<input class="input" type="text" name="name" maxlength="120" required></label>
+    <label>Purpose<textarea class="input" name="purpose" rows="4" maxlength="500" placeholder="What should this agent focus on?"></textarea></label>
+    <button class="button primary" type="submit" data-tab-save>Save settings</button>
+  </form>
+  <div class="vb-tab-danger"><button type="button" class="button secondary" data-tab-delete hidden>Delete tab</button></div>
+</aside>
+
 <script type="application/json" id="vb-daytrip-data"><?=json_encode($mapTrips, JSON_UNESCAPED_SLASHES|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="<?=e(app_url('assets/dashboard-trips.js'))?>"></script>
+<script src="<?=e(app_url('assets/dashboard-tabs.js'))?>"></script>
 <?php require __DIR__.'/partials/footer.php';?>

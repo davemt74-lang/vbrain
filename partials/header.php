@@ -59,7 +59,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
 <button class="sidebar-mobile-toggle" type="button" data-sidebar-toggle aria-label="Open navigation">☰</button>
 <div class="sidebar-backdrop" data-sidebar-backdrop></div>
 <aside class="app-sidebar" data-app-sidebar>
-  <div class="sidebar-brand-row"><a class="brand sidebar-brand" href="<?=e(app_url('today.php'))?>"><?php if($siteLogo):?><img class="brand-logo-image" src="<?=e($siteLogo)?>" alt="<?=e($siteName)?>"><?php else:?><span class="brand-mark">◒</span><span><?=e($siteName)?></span><?php endif;?></a><button type="button" class="sidebar-close" data-sidebar-close aria-label="Close navigation">×</button></div>
+  <div class="sidebar-brand-row"><a class="brand sidebar-brand" href="<?=e(app_url('today.php'))?>"><?php if($siteLogo):?><img class="brand-logo-image" src="<?=e($siteLogo)?>" alt="<?=e($siteName)?>"><?php else:?><span><?=e($siteName)?></span><?php endif;?></a><button type="button" class="sidebar-close" data-sidebar-close aria-label="Close navigation">×</button></div>
   <nav class="sidebar-nav" aria-label="Vacation Brain">
     <?php if($inAdmin && is_admin()): ?>
       <span class="sidebar-section-label">Admin</span>
@@ -84,7 +84,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
     <?php else: ?>
       <span class="sidebar-section-label">Vacation Brain</span>
       <a class="<?=nav_active(['today.php'])?>" href="<?=e(app_url('today.php'))?>"><span>⌂</span>Dashboard</a>
-      <a class="<?=nav_active(['dream.php','dream-trip.php'])?>" href="<?=e(app_url('dream.php'))?>"><span>☁</span>Dream</a>
+      <a class="<?=nav_active(['dream.php','dream-trip.php'])?>" href="<?=e(app_url('dream.php'))?>"><span>☁</span>Plan Trip</a>
       <a class="<?=nav_active(['destinations.php'])?>" href="<?=e(app_url('destinations.php'))?>"><span>⌖</span>Destinations</a>
       <a class="<?=nav_active(['vacation-yourself.php','vacation-gallery.php'])?>" href="<?=e(app_url('vacation-gallery.php'))?>"><span>▧</span>My Fake Vacations</a>
       <a class="<?=nav_active(['shop.php','shop-product.php','cart.php','checkout.php','merch.php'])?>" href="<?=e(app_url('shop.php'))?>"><span>▣</span>Shop</a>
@@ -116,5 +116,5 @@ function nav_active(array $files): string { global $current; return in_array($cu
 </aside>
 <main class="app-main">
 <?php else: ?>
-<header class="site-header"><div class="shell nav-shell"><a class="brand" href="<?=e(app_url('index.php'))?>"><?php if($siteLogo):?><img class="brand-logo-image" src="<?=e($siteLogo)?>" alt="<?=e($siteName)?>"><?php else:?><span class="brand-mark">◒</span><span><?=e($siteName)?></span><?php endif;?></a><nav class="nav-actions" aria-label="Primary"><a href="<?=e(app_url('diagnosis.php'))?>">Self-Diagnosis</a><a href="<?=e(app_url('professional-assessment.php'))?>">Professional Assessment</a><a href="<?=e(app_url('shop.php'))?>">Shop</a></nav></div></header><main>
+<header class="site-header"><div class="shell nav-shell"><a class="brand" href="<?=e(app_url('index.php'))?>"><?php if($siteLogo):?><img class="brand-logo-image" src="<?=e($siteLogo)?>" alt="<?=e($siteName)?>"><?php else:?><span><?=e($siteName)?></span><?php endif;?></a><nav class="nav-actions" aria-label="Primary"><a href="<?=e(app_url('diagnosis.php'))?>">Self-Diagnosis</a><a href="<?=e(app_url('professional-assessment.php'))?>">Professional Assessment</a><a href="<?=e(app_url('shop.php'))?>">Shop</a></nav></div></header><main>
 <?php endif; ?>
