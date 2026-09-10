@@ -46,6 +46,9 @@ jobs:
       - name: Check dashboard agent tabs contract
         run: php tests/dashboard_agent_tabs_contract.php
 
+      - name: Check dashboard recently viewed contract
+        run: php tests/dashboard_recent_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
@@ -94,6 +97,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-trips.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-tabs.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-tabs.js'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-recent.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/032_dashboard_agent_tabs.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
