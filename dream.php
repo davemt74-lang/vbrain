@@ -3,7 +3,7 @@ require __DIR__.'/app/bootstrap.php';
 $userId=require_auth();$pdo=db();$service=new DreamService($pdo);$trips=$service->all($userId);$pageStyles=['assets/trip-intelligence.css'];$title='Plan Trips — Vacation Brain';require __DIR__.'/partials/header.php';
 ?>
 <section class="dashboard trip-index-page"><div class="shell">
-<div class="dashboard-head trip-index-head"><div><div class="eyebrow">Plan Trip</div><h1>Trips the brain is currently thinking about.</h1><p class="muted">Each trip gets its own weather, flight, event, local-business, itinerary and budget intelligence workspace.</p></div><a class="button primary" href="<?=e(app_url('dream-new.php'))?>">+ New trip</a></div>
+<div class="dashboard-head trip-index-head"><div><div class="eyebrow">Trip Intelligence · Plan Trip</div><h1>Trips the brain is currently thinking about.</h1><p class="muted">Each trip gets its own weather, flight, event, local-business, itinerary and budget intelligence workspace.</p></div><a class="button primary" href="<?=e(app_url('dream-new.php'))?>">+ New trip</a></div>
 <div class="trip-index-grid">
 <?php foreach($trips as $trip):?>
 <a class="trip-index-card" href="<?=e(app_url('dream-trip.php?id='.(int)$trip['id']))?>">
