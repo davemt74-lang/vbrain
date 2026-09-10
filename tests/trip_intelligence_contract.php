@@ -26,7 +26,7 @@ foreach($files as $file){if(!is_file($root.'/'.$file)){fwrite(STDERR,"Missing tr
 $read=static fn(string $file): string => file_get_contents($root.'/'.$file) ?: '';
 
 $migration=$read('db/035_trip_intelligence.sql');
-foreach(['destination_catalog_id','origin_name','origin_iata','destination_iata','intelligence_refreshed_at','scheduled_date','daypart','source_provider','CREATE TABLE trip_intelligence_snapshots','CREATE TABLE trip_agent_messages','idx_trip_snapshot_current','uq_trip_agent_fingerprint',"'app_version','1.27'"] as $needle){if(strpos($migration,$needle)===false){fwrite(STDERR,"Trip migration missing {$needle}\n");exit(1);}}
+foreach(['destination_catalog_id','origin_name','origin_iata','destination_iata','intelligence_refreshed_at','scheduled_date','daypart','source_provider','CREATE TABLE trip_intelligence_snapshots','CREATE TABLE trip_agent_messages','idx_trip_snapshot_current','uq_trip_agent_fingerprint','ADD CONSTRAINT fk_dream_destination_catalog',"'app_version','1.27'"] as $needle){if(strpos($migration,$needle)===false){fwrite(STDERR,"Trip migration missing {$needle}\n");exit(1);}}
 if(strpos($migration,'UNIQUE KEY uq_trip_snapshot_query')!==false){fwrite(STDERR,"Trip snapshots must remain historical rather than overwriting refreshes.\n");exit(1);}
 
 $index=$read('dream.php');

@@ -12,7 +12,7 @@ ALTER TABLE dream_trips
   ADD COLUMN intelligence_refreshed_at DATETIME NULL AFTER currency,
   ADD KEY idx_dream_destination_catalog (destination_catalog_id),
   ADD KEY idx_dream_trip_dates (start_date,end_date),
-  CONSTRAINT fk_dream_destination_catalog FOREIGN KEY (destination_catalog_id) REFERENCES destination_catalog(id) ON DELETE SET NULL;
+  ADD CONSTRAINT fk_dream_destination_catalog FOREIGN KEY (destination_catalog_id) REFERENCES destination_catalog(id) ON DELETE SET NULL;
 
 ALTER TABLE dream_trip_items
   ADD COLUMN scheduled_date DATE NULL AFTER notes,
