@@ -73,7 +73,6 @@ function require_auth(): int
     return $id;
 }
 
-
 function installation_owner_user_id(): ?int
 {
     try {
@@ -95,34 +94,8 @@ function auth_user_role(): ?string
     if (!$id) return null;
 
     try {
-        // Once an installation owner has been claimed, that account is always Admin.
-        $ownerId = installation_owner_user_id();
-        if ($ownerId !== null && $ownerId === $id) {
-            if (db_column_exists('user_auth','role')) {
-                db()->prepare('UPDATE user_auth SET role=? WHERE user_id=? AND role<>?')->execute(['admin',$id,'admin']);
-            }
-            return 'admin';
-        }
-
-        /*
-         * Legacy recovery: the earliest authenticated active account is treated as
-         * the primary install user when no explicit owner has been recorded yet.
-         * The separate Admin Access recovery page covers older installs where test
-         * accounts happened to be created before the actual owner.
-         */
-        if ($ownerId === null) {
-            $firstStmt = db()->query("SELECT MIN(ua.user_id) FROM user_auth ua JOIN users u ON u.id=ua.user_id WHERE u.status='active'");
-            $first = $firstStmt ? $firstStmt->fetchColumn() : false;
-            if ($first !== false && (int)$first === $id) {
-                if (db_column_exists('user_auth','role')) {
-                    db()->prepare('UPDATE user_auth SET role=? WHERE user_id=?')->execute(['admin',$id]);
-                }
-                return 'admin';
-            }
-        }
-
         if (!db_column_exists('user_auth','role')) return 'user';
-        $stmt = db()->prepare('SELECT role FROM user_auth WHERE user_id=?');
+        $stmt = db()->prepare('SELECT role FROM user_auth WHERE user_id=? LIMIT 1');
         $stmt->execute([$id]);
         $raw = $stmt->fetchColumn();
         $role = strtolower(trim((string)($raw === false ? '' : $raw)));
@@ -141,8 +114,6 @@ function is_primary_install_user(): bool
 {
     $id = auth_user_id();
     if (!$id) return false;
-    $ownerId = installation_owner_user_id();
-    if ($ownerId !== null) return $ownerId === $id;
     try {
         $first = db()->query("SELECT MIN(ua.user_id) FROM user_auth ua JOIN users u ON u.id=ua.user_id WHERE u.status='active'")->fetchColumn();
         return $first !== false && (int)$first === $id;
@@ -153,12 +124,14 @@ function is_primary_install_user(): bool
 
 function admin_owner_claim_available(): bool
 {
-    return auth_user_id() !== null && installation_owner_user_id() === null;
+    return auth_user_id() !== null
+        && installation_owner_user_id() === null
+        && is_primary_install_user();
 }
 
 function can_show_admin_entry(): bool
 {
-    return is_admin() || is_primary_install_user() || admin_owner_claim_available();
+    return is_admin();
 }
 
 function is_admin(): bool
@@ -223,7 +196,6 @@ function user_initials(?string $name): string
     $out=''; foreach(array_slice($parts,0,2) as $part){$out.=strtoupper(substr($part,0,1));}
     return $out ?: 'VB';
 }
-
 
 function db_table_exists(string $table): bool
 {
