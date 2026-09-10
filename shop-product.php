@@ -1,6 +1,5 @@
 <?php
 require __DIR__.'/app/bootstrap.php';
-require_auth();
 
 $pdo = db();
 $slug = (string)($_GET['slug'] ?? '');
