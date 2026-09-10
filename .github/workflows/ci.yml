@@ -32,7 +32,11 @@ jobs:
         run: php tests/permissions_contract.php
 
       - name: Check JavaScript syntax
-        run: node --check assets/app.js
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/app.js
+          node --check assets/shell-commerce.js
 
       - name: Verify ordered migrations
         shell: bash
@@ -64,6 +68,9 @@ jobs:
           (cd /tmp/vacation-brain-deploy && zip -qr "$GITHUB_WORKSPACE/vacation-brain-deploy.zip" .)
           test -s vacation-brain-deploy.zip
           unzip -l vacation-brain-deploy.zip | grep -q 'upgrade.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'config-example.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'api/shell-state.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/shell-commerce.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/030_progressive_diagnosis.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
