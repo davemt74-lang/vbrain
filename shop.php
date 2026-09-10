@@ -1,12 +1,11 @@
 <?php
 require __DIR__.'/app/bootstrap.php';
-require_auth();
 $pdo = db();
 
 if (!db_table_exists('merch_catalog_products')) {
     $title = 'Shop — Vacation Brain';
     require __DIR__.'/partials/header.php'; ?>
-    <section class="dashboard"><div class="shell"><div class="dashboard-card upgrade-required-card"><div class="eyebrow">Vacation Brain Shop</div><h1>Shop is almost ready.</h1><p class="muted">The Shop catalog needs the latest Vacation Brain database upgrade before it can load.</p><?php if(is_admin()):?><a class="button primary" href="<?=e(app_url('upgrade.php'))?>">Run System Upgrade</a><?php else:?><p class="microcopy">An administrator needs to run the pending system upgrade.</p><?php endif;?></div></div></section>
+    <section class="dashboard"><div class="shell"><div class="dashboard-card upgrade-required-card"><div class="eyebrow">Vacation Brain Shop</div><h1>Shop is almost ready.</h1><p class="muted">The Shop catalog needs the latest Vacation Brain database upgrade before it can load.</p><?php if(is_admin()):?><a class="button primary" href="<?=e(app_url('upgrade.php'))?>">Run System Upgrade</a><?php else:?><p class="microcopy">The shop catalog is temporarily unavailable.</p><?php endif;?></div></div></section>
     <?php require __DIR__.'/partials/footer.php'; exit;
 }
 

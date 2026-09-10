@@ -36,9 +36,9 @@ jobs:
         run: |
           set -euo pipefail
           test -f db/001_schema.sql
-          test -f db/029_vacation_brain_merch_collection.sql
+          test -f db/030_progressive_diagnosis.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 29
+          test "$COUNT" -eq 30
 
       - name: Validate WebP media
         shell: bash
@@ -61,7 +61,7 @@ jobs:
           (cd /tmp/vacation-brain-deploy && zip -qr "$GITHUB_WORKSPACE/vacation-brain-deploy.zip" .)
           test -s vacation-brain-deploy.zip
           unzip -l vacation-brain-deploy.zip | grep -q 'upgrade.php'
-          unzip -l vacation-brain-deploy.zip | grep -q 'db/029_vacation_brain_merch_collection.sql'
+          unzip -l vacation-brain-deploy.zip | grep -q 'db/030_progressive_diagnosis.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-trucker-hat.webp'

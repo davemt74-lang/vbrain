@@ -5,6 +5,10 @@ if (!$result) redirect('diagnosis.php');
 $title = 'Your Vacation Brain Diagnosis';
 $topTraits = array_slice($result['traits'] ?? [], 0, 6, true);
 $share = sprintf('My Vacation Brain Score is %d — %s. Apparently I need a vacation.', $result['vacation_brain_score'], $result['title']);
+$answeredCount = max(0, (int)($result['answered_count'] ?? count($result['answers'] ?? [])));
+$questionCount = max($answeredCount, (int)($result['question_count'] ?? $answeredCount));
+$diagnosisConfidence = max(1, min(100, (int)($result['diagnosis_confidence'] ?? ($questionCount > 0 ? round(($answeredCount / $questionCount) * 100) : 100))));
+$depthLabel = $diagnosisConfidence >= 100 ? 'Full profile depth' : ($diagnosisConfidence >= 75 ? 'High profile depth' : 'Core diagnosis');
 $destinationMatches=[];
 try{$destinationMatches=(new DestinationRecommendationService(db()))->recommendationsFromTraits($result['traits']??[],3);}catch(Throwable){}
 $primaryDestination=$destinationMatches[0]??null;
@@ -17,6 +21,18 @@ require __DIR__ . '/partials/header.php';
       <div class="result-score"><?= (int)$result['vacation_brain_score'] ?></div>
       <h1><?= e($result['title']) ?></h1>
       <p class="section-lead" style="margin-bottom:20px"><?= e($result['summary']) ?></p>
+
+      <?php if ($questionCount > DiagnosisService::MIN_ANSWERS): ?>
+        <div class="dashboard-card" style="margin:0 0 22px;padding:16px 18px;background:#f7fbfa">
+          <div style="display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap">
+            <div><span class="eyebrow">Diagnosis depth</span><strong style="display:block;margin-top:4px"><?=e($depthLabel)?></strong></div>
+            <div style="text-align:right"><strong><?= (int)$answeredCount ?>/<?= (int)$questionCount ?> answers</strong><div class="muted small"><?= (int)$diagnosisConfidence ?>% profile depth</div></div>
+          </div>
+          <div class="bar" style="margin-top:12px"><span style="width:<?= (int)$diagnosisConfidence ?>%"></span></div>
+          <?php if ($answeredCount < $questionCount): ?><p class="microcopy" style="margin:10px 0 0">Your diagnosis is valid now. Answering more questions next time gives Vacation Brain more signal for destination, pacing, food, lodging, and activity recommendations.</p><?php endif; ?>
+        </div>
+      <?php endif; ?>
+
       <span class="eyebrow">Vacation prescription</span>
       <ul class="prescription-list">
         <?php foreach ($result['prescription'] as $item): ?><li>✓ <?= e($item) ?></li><?php endforeach; ?>
@@ -38,7 +54,7 @@ require __DIR__ . '/partials/header.php';
       </div>
       <?php if(count($destinationMatches)>1):?><hr style="border:0;border-top:1px solid var(--line);margin:24px 0"><span class="eyebrow">Also suspiciously compatible</span><?php foreach(array_slice($destinationMatches,1) as $match):?><div style="margin-top:12px"><strong><?=e($match['name'])?></strong><div class="muted small"><?=e($match['vibe']??'')?></div></div><?php endforeach;?><?php endif;?>
       <hr style="border:0;border-top:1px solid var(--line);margin:24px 0">
-      <p class="muted">This is the beginning of your Vacation Brain profile. Daily check-ins and future swipe decks will make the profile more confident over time.</p>
+      <p class="muted">This is the beginning of your Vacation Brain profile. Optional diagnosis questions, daily check-ins, and future swipe decks make the profile more confident over time.</p>
     </aside>
   </div>
 </section>
