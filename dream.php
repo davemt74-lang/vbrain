@@ -1,8 +1,20 @@
 <?php
-require __DIR__.'/app/bootstrap.php';$userId=require_auth();$pdo=db();$service=new DreamService($pdo);$error='';
-if($_SERVER['REQUEST_METHOD']==='POST'){verify_csrf();try{$id=$service->create($userId,$_POST);redirect('dream-trip.php?id='.$id);}catch(Throwable $e){$error=$e->getMessage();}}
-$trips=$service->all($userId);$title='Dream — Vacation Brain';require __DIR__.'/partials/header.php';
+require __DIR__.'/app/bootstrap.php';
+$userId=require_auth();$pdo=db();$service=new DreamService($pdo);$trips=$service->all($userId);$pageStyles=['assets/trip-intelligence.css'];$title='Plan Trips — Vacation Brain';require __DIR__.'/partials/header.php';
 ?>
-<section class="dashboard"><div class="shell"><div class="dashboard-head"><div><div class="eyebrow">Dream</div><h1>Trips you are absolutely not obsessing over.</h1><p class="muted">No booking pressure. Save the idea, reopen it 17 times, and let Vacation Brain notice.</p></div></div><?php if($error):?><div class="alert error"><?=e($error)?></div><?php endif;?>
-<div class="dream-layout"><div class="dream-grid"><?php foreach($trips as $trip):?><a class="dream-card" href="<?=e(app_url('dream-trip.php?id='.(int)$trip['id']))?>"><div class="dream-level"><?=str_repeat('●',(int)$trip['dream_level']).str_repeat('○',5-(int)$trip['dream_level'])?></div><span><?=e($trip['status_label'])?></span><h2><?=e($trip['name'])?></h2><p><?=e($trip['destination_name']?:'Destination intentionally vague')?></p><div class="dream-meta"><strong><?=e($trip['temperature'])?></strong><span><?=(int)$trip['item_count']?> saved ideas · <?=(int)$trip['view_count']?> revisits</span></div></a><?php endforeach;?><?php if(!$trips):?><article class="dream-empty"><h2>No dream trips yet.</h2><p>Extremely responsible behavior. Let’s correct it.</p></article><?php endif;?></div>
-<aside class="dream-create"><span class="eyebrow">New Daydream</span><h2>Start somewhere.</h2><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><label>Trip nickname<input name="name" placeholder="Cabo Eventually"></label><label>Where?<input name="destination" placeholder="Cabo San Lucas"></label><label>Who’s going?<input type="number" min="1" max="30" name="travelers" value="2"></label><label>Dream intensity<select name="dream_level"><option value="1">1 — passing thought</option><option value="2" selected>2 — definitely thinking about it</option><option value="3">3 — screenshots exist</option><option value="4">4 — this is getting serious</option><option value="5">5 — emotionally packed</option></select></label><button class="button primary">Create dream trip</button></form></aside></div></div></section><?php require __DIR__.'/partials/footer.php';?>
+<section class="dashboard trip-index-page"><div class="shell">
+<div class="dashboard-head trip-index-head"><div><div class="eyebrow">Plan Trip</div><h1>Trips the brain is currently thinking about.</h1><p class="muted">Each trip gets its own weather, flight, event, local-business, itinerary and budget intelligence workspace.</p></div><a class="button primary" href="<?=e(app_url('dream-new.php'))?>">+ New trip</a></div>
+<div class="trip-index-grid">
+<?php foreach($trips as $trip):?>
+<a class="trip-index-card" href="<?=e(app_url('dream-trip.php?id='.(int)$trip['id']))?>">
+  <div class="trip-index-card-top"><span class="trip-status-pill"><?=e($trip['status_label'])?></span><span class="dream-level"><?=str_repeat('●',(int)$trip['dream_level']).str_repeat('○',5-(int)$trip['dream_level'])?></span></div>
+  <h2><?=e($trip['name'])?></h2><p class="trip-destination"><?=e($trip['destination_name']?:'Destination TBD')?></p>
+  <div class="trip-index-route"><span><?=e((string)($trip['origin_iata']??$trip['origin_name']??'Origin TBD'))?></span><strong>→</strong><span><?=e((string)($trip['destination_iata']??$trip['destination_name']??'Destination'))?></span></div>
+  <div class="trip-index-meta"><span><?=e((string)($trip['date_label']??'Dates flexible'))?></span><span><?=(int)$trip['travelers']?> traveler<?=(int)$trip['travelers']===1?'':'s'?></span><?php if($trip['target_budget']!==null):?><span>$<?=number_format((float)$trip['target_budget'],0)?> budget</span><?php endif;?></div>
+  <div class="trip-readiness"><div><strong><?=e($trip['temperature'])?></strong><span><?=(int)$trip['booking_readiness']?>%</span></div><div class="trait-meter"><span style="width:<?=(int)$trip['booking_readiness']?>%"></span></div></div>
+  <div class="trip-index-foot"><span><?=(int)$trip['item_count']?> saved plan items · <?=(int)$trip['view_count']?> revisits</span><?php if(!empty($trip['intelligence_refreshed_at'])):?><span>Intel <?=e(date('M j',strtotime((string)$trip['intelligence_refreshed_at'])))?></span><?php else:?><span>Intel waiting</span><?php endif;?></div>
+</a>
+<?php endforeach;?>
+<?php if(!$trips):?><article class="dashboard-card trip-index-empty"><div class="eyebrow">No trips yet</div><h2>Extremely responsible behavior.</h2><p class="muted">Start a trip and Vacation Brain will begin building destination intelligence around it.</p><a class="button primary" href="<?=e(app_url('dream-new.php'))?>">Create your first trip →</a></article><?php endif;?>
+</div></div></section>
+<?php require __DIR__.'/partials/footer.php';?>
