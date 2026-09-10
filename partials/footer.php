@@ -5,14 +5,21 @@
 <?php require __DIR__.'/shell-actions.php'; ?>
 <script src="<?=e(app_url('assets/app.js'))?>"></script>
 <script src="<?=e(app_url('assets/shell-commerce.js'))?>"></script>
-<?php if($footerUser && $footerPage!=='match-chat.php'):?>
+<?php if($footerUser && $footerPage!=='match-chat.php'):
+$footerAgentPrefill=(string)($agentComposerPrefill??'');
+if($footerAgentPrefill==='' && $footerPage==='agent.php'){
+    $footerPromptMap=['profile'=>'What have you learned about me?','diagnosis'=>'Show me what my Vacation Brain would prescribe.','gallery'=>'Show my fake vacations.'];
+    $footerAgentPrefill=$footerPromptMap[(string)($_GET['prompt']??'')]??'';
+}
+?>
+<link rel="stylesheet" href="<?=e(app_url('assets/dashboard-agent-bar.css'))?>" data-vb-agent-bar-style>
 <script type="application/json" data-vb-agent-config><?=json_encode([
     'csrf'=>csrf_token(),
     'agent_url'=>app_url('agent.php'),
     'context_api'=>app_url('api/dashboard-destination-context.php'),
     'photos_url'=>app_url('photos.php'),
     'vacation_yourself_url'=>app_url('vacation-yourself.php'),
-    'prefill'=>(string)($agentComposerPrefill??''),
+    'prefill'=>$footerAgentPrefill,
 ],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
 <script src="<?=e(app_url('assets/dashboard-agent-bar.js'))?>"></script>
 <?php endif;?>
