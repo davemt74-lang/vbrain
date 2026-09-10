@@ -34,9 +34,7 @@
     drawer.setAttribute('aria-hidden','false');
     if(backdrop)backdrop.classList.add('open');
     document.body.classList.add('vb-tab-drawer-open');
-    window.setTimeout(function(){
-      if(nameInput&&!nameInput.disabled)nameInput.focus();
-    },60);
+    window.setTimeout(function(){if(nameInput&&!nameInput.disabled&&form&&!form.hidden)nameInput.focus();},60);
   }
 
   function closeDrawer(){
@@ -57,8 +55,7 @@
       if(select)select.setAttribute('aria-selected',active?'true':'false');
     });
     document.querySelectorAll('[data-agent-pane]').forEach(function(pane){
-      var active=String(pane.getAttribute('data-agent-pane'))===activeKey;
-      pane.hidden=!active;
+      pane.hidden=String(pane.getAttribute('data-agent-pane'))!==activeKey;
     });
     if(activeKey==='main')document.dispatchEvent(new CustomEvent('vb:dashboard-main-shown'));
     if(updateUrl!==false&&window.history&&history.replaceState){
@@ -75,7 +72,7 @@
     if(!drawer)return;
     if(drawerTitle)drawerTitle.textContent='Main tab settings';
     if(drawerIntro)drawerIntro.textContent='The Main tab is your permanent Vacation Brain dashboard.';
-    if(mainNote)mainNote.hidden=false;
+    if(mainNote){mainNote.hidden=false;mainNote.textContent='The Main tab is permanent and contains your default dashboard. It cannot be deleted.';}
     if(form)form.hidden=true;
     if(deleteButton)deleteButton.hidden=true;
     openDrawer();
@@ -104,8 +101,7 @@
     if(workspace.getAttribute('data-tabs-ready')!=='1'){
       if(drawerTitle)drawerTitle.textContent='Agent tabs need an upgrade';
       if(drawerIntro)drawerIntro.textContent='Run System Upgrade once to enable persistent agent tabs for this account.';
-      if(mainNote)mainNote.hidden=false;
-      if(mainNote)mainNote.textContent='The Main dashboard will continue to work normally until the database upgrade is applied.';
+      if(mainNote){mainNote.hidden=false;mainNote.textContent='The Main dashboard will continue to work normally until the database upgrade is applied.';}
       if(form)form.hidden=true;
       if(deleteButton)deleteButton.hidden=true;
       openDrawer();
@@ -132,8 +128,19 @@
   document.addEventListener('click',function(event){
     var select=event.target.closest('[data-agent-tab-select]');
     if(select){var tab=select.closest('[data-agent-tab]');if(tab)selectTab(tab.getAttribute('data-tab-key'),true);return;}
+
     var settings=event.target.closest('[data-agent-tab-settings]');
-    if(settings){var settingsTab=settings.closest('[data-agent-tab]');if(!settingsTab)return;if(settingsTab.getAttribute('data-tab-key')==='main')openMainSettings();else openAgentSettings(settingsTab);return;}
+    if(settings){
+      var settingsTab=settings.closest('[data-agent-tab]');
+      if(!settingsTab){
+        var target=settings.getAttribute('data-agent-settings-for')||'';
+        if(target)settingsTab=document.querySelector('[data-agent-tab][data-tab-key="'+target.replace(/"/g,'')+'"]');
+      }
+      if(!settingsTab)return;
+      if(settingsTab.getAttribute('data-tab-key')==='main')openMainSettings();else openAgentSettings(settingsTab);
+      return;
+    }
+
     if(event.target.closest('[data-agent-add]')){openCreate();return;}
     if(event.target.closest('[data-tab-drawer-close]')){closeDrawer();return;}
   });
@@ -162,6 +169,5 @@
     postForm(payload).then(function(){window.location.href=pageUrl;}).catch(function(error){showError(error.message);deleteButton.disabled=false;deleteButton.textContent='Delete tab';});
   });
 
-  var initial=workspace.getAttribute('data-active-tab')||'main';
-  selectTab(initial,false);
+  selectTab(workspace.getAttribute('data-active-tab')||'main',false);
 })();
