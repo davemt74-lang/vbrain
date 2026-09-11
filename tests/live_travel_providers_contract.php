@@ -33,7 +33,7 @@ $m=$read('db/046_live_travel_providers.sql');
 foreach(['CREATE TABLE travel_provider_settings','CREATE TABLE travel_provider_usage_log','api_key_encrypted','aviationstack','booking_com','flight_number','departure_iata','arrival_iata','watch_lodging',"'app_version','1.38'"] as $n){if(strpos($m,$n)===false){fwrite(STDERR,"Live provider migration missing {$n}\n");exit(1);}}
 
 $settings=$read('app/Services/TravelProviderSettingsService.php');
-foreach(['class TravelProviderSettingsService','aes-256-gcm','function effectiveKey','function save','function clearKey','function test','function recordUsage','VISUAL_CROSSING_API_KEY','AVIATIONSTACK_API_KEY','BOOKING_COM_API_TOKEN','booking_com_affiliate_id','maskedKey'] as $n){if(strpos($settings,$n)===false){fwrite(STDERR,"Travel provider settings service missing {$n}\n");exit(1);}}
+foreach(['class TravelProviderSettingsService','aes-256-gcm','function effectiveKey','function save','function clearKey','function test','function recordUsage','VISUAL_CROSSING_API_KEY','AVIATIONSTACK_API_KEY','BOOKING_COM_API_TOKEN','booking_com_affiliate_id','maskedKey','Booking.com Demand API','Aviationstack','Skyscanner'] as $n){if(strpos($settings,$n)===false){fwrite(STDERR,"Travel provider settings service missing {$n}\n");exit(1);}}
 foreach(["unset(\$row['api_key_encrypted']","api_key_encrypted=NULL"] as $n){if(strpos($settings,$n)===false){fwrite(STDERR,"Travel provider secret handling missing {$n}\n");exit(1);}}
 
 $provider=$read('app/Services/LiveTravelDataProviderService.php');
@@ -52,7 +52,7 @@ $tracking=$read('app/Services/TripFlightTrackingService.php');foreach(['class Tr
 $route=$read('flight-tracking.php');foreach(['require_auth','verify_csrf','TripFlightTrackingService','booking_id','trip-bookings.php?id='] as $n){if(strpos($route,$n)===false){fwrite(STDERR,"Flight tracking route missing {$n}\n");exit(1);}}
 $panel=$read('partials/flight-tracking-panel.php');foreach(['Live flight status','Confirmation codes and booking notes are never sent','Flight number','departure_iata','arrival_iata'] as $n){if(strpos($panel,$n)===false){fwrite(STDERR,"Flight tracking panel missing {$n}\n");exit(1);}}
 
-$admin=$read('admin/travel-providers.php');foreach(['require_admin','verify_csrf','TravelProviderSettingsService','Server-side credentials only','Save & test','Booking.com Demand API','Aviationstack','Skyscanner','travel_provider_usage_log'] as $n){if(strpos($admin,$n)===false){fwrite(STDERR,"Travel provider admin missing {$n}\n");exit(1);}}
+$admin=$read('admin/travel-providers.php');foreach(['require_admin','verify_csrf','TravelProviderSettingsService','Server-side credentials only','Save & test','travel_provider_usage_log'] as $n){if(strpos($admin,$n)===false){fwrite(STDERR,"Travel provider admin missing {$n}\n");exit(1);}}
 if(strpos($admin,'api_key_encrypted')!==false){fwrite(STDERR,"Travel provider admin must never render encrypted credential columns.\n");exit(1);}
 
 $lodging=$read('trip-lodging.php');foreach(['require_auth','verify_csrf','Live lodging','TripIntelligenceService',"['lodging']",'addFromSnapshot','confirmed reservation','Booking.com Demand API'] as $n){if(strpos($lodging,$n)===false){fwrite(STDERR,"Live lodging page missing {$n}\n");exit(1);}}
