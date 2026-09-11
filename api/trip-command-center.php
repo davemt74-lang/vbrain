@@ -6,7 +6,7 @@ header('Cache-Control: private, no-store, max-age=0');
 
 $userId=require_auth();
 try{
-    $snapshot=(new TripCommandCenterService(db()))->snapshot($userId);
+    $pdo=db();$snapshot=(new TripCommandCenterService($pdo))->snapshot($userId);$bookingService=new TripBookingService($pdo);if($bookingService->ready())$snapshot=$bookingService->augmentCommandCenterSnapshot($userId,$snapshot);
     echo json_encode(['ok'=>true,'command_center'=>$snapshot],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
 }catch(InvalidArgumentException $e){
     http_response_code(422);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
