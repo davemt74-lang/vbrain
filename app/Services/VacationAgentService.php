@@ -70,7 +70,9 @@ final class VacationAgentService
             }catch(Throwable){}
             $liveTripContext='';
             try{if(class_exists('LiveTravelAgentContextService'))$liveTripContext=(new LiveTravelAgentContextService($this->pdo))->context($userId);}catch(Throwable){}
-            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. When Traveler Memory is present, distinguish diagnosis guesses from preferences supported by completed trips, honor ignored learning signals, and never infer private trip notes. When LIVE TRIP CONTEXT is present, it contains only previously saved provider snapshots: do not claim you refreshed a provider during this chat. When PROACTIVE TRIP STATE is present, treat it as saved risk/opportunity evidence with source state and confidence, not certainty. You may recommend or research next moves, but never imply that an itinerary, reservation, purchase, or booking change has been applied without the user\'s explicit approval. Respect freshness labels. Treat Aviationstack booked-flight status as operational information that can still change; treat Skyscanner airfare as indicative only; treat Booking.com lodging results as search availability, not confirmed reservations. Never infer or request booking confirmation codes from live-provider context. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($memoryContext!==''?"\n\n".$memoryContext:'').($liveTripContext!==''?"\n\n".$liveTripContext:'').($researchContext!==''?"\n\n".$researchContext:'').$dashboardContext;
+            $bookingActionContext='';
+            try{if(class_exists('BookingActionAgentContextService'))$bookingActionContext=(new BookingActionAgentContextService($this->pdo))->context($userId,6);}catch(Throwable){}
+            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. When Traveler Memory is present, distinguish diagnosis guesses from preferences supported by completed trips, honor ignored learning signals, and never infer private trip notes. When LIVE TRIP CONTEXT is present, it contains only previously saved provider snapshots: do not claim you refreshed a provider during this chat. When PROACTIVE TRIP STATE is present, treat it as saved risk/opportunity evidence with source state and confidence, not certainty. You may recommend or research next moves, but never imply that an itinerary, reservation, purchase, or booking change has been applied without the user\'s explicit approval. When BOOKING ACTION STATE is present, distinguish planning approval from transaction approval and distinguish awaiting approval, approved, executing, provider handoff, verification pending, failed, and completed. Never claim a transaction completed unless the saved ledger says completed. A completed provider handoff is user-confirmed Booked, not provider-verified Confirmed. If a destructive action is verification pending, tell the user not to retry it until provider state is verified. BOOKING ACTION STATE is read-only saved data and never authorizes a provider call from chat. Respect freshness labels. Treat Aviationstack booked-flight status as operational information that can still change; treat Skyscanner airfare as indicative only; treat Booking.com lodging results as search availability, not confirmed reservations. Never infer or request booking confirmation codes, provider order/reservation references, payment-card data, or private booking notes from agent context. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($memoryContext!==''?"\n\n".$memoryContext:'').($liveTripContext!==''?"\n\n".$liveTripContext:'').($bookingActionContext!==''?"\n\n".$bookingActionContext:'').($researchContext!==''?"\n\n".$researchContext:'').$dashboardContext;
             return (new AiProviderService($this->pdo))->generateText($system,$message,$userId,'agent_chat',450);
         }catch(Throwable){return null;}
     }
@@ -82,6 +84,15 @@ final class VacationAgentService
         $selected=[];try{$selected=(new DashboardDestinationContextService($this->pdo))->names($userId);}catch(Throwable){}
         if($selected && (str_contains($q,'compare')||str_contains($q,'selected')||str_contains($q,'locations'))){
             return 'Your selected destination context is '.implode(', ',$selected).'. The AI provider is unavailable right now, so I can keep those places selected but I cannot produce a reliable live comparison until the configured agent model responds.';
+        }
+        if($this->isBookingActionQuestion($q)){
+            try{
+                if(class_exists('BookingActionAgentContextService')){
+                    $ledger=new BookingActionAgentContextService($this->pdo);$rows=$ledger->active($userId,6);
+                    if($rows){$answer=$this->bookingActionFallback($rows);if($answer!=='')return $answer;}
+                }
+            }catch(Throwable){}
+            return 'I do not have a saved booking-action transaction state to report. Open Booking & Trip Readiness to prepare or review a provider action. This chat did not contact a booking provider.';
         }
         if($this->isLiveTripQuestion($q)){
             try{$live=(new LiveTravelAgentContextService($this->pdo))->fallbackSummary($userId);if($live){$answer=$this->liveFallback($q,$live);if($answer!=='')return $answer;}}catch(Throwable){}
@@ -108,6 +119,31 @@ final class VacationAgentService
         }
         if(str_contains($q,'break')||str_contains($q,'escape'))return 'I recommend the Escape tab. Your options include a tiny Vacation Break, a local Vacation Substitution, Weather Envy, or letting me help fabricate an out-of-office message.';
         $comment=(new FunContentService($this->pdo))->random('agent_comment',$userId);return $comment?(string)$comment['body']:'I have reviewed the situation and recommend continued vacation-related procrastination.';
+    }
+
+    private function isBookingActionQuestion(string $q): bool
+    {
+        foreach(['what needs approval','transaction approval','booking action','provider action','checkout status','did it book','did that book','did it cancel','did that cancel','cancellation action','purchase status','reservation action','payment approval','verification pending'] as $needle)if(str_contains($q,$needle))return true;
+        return false;
+    }
+
+    private function bookingActionFallback(array $rows): string
+    {
+        $row=$rows[0]??null;if(!is_array($row))return '';
+        $trip=(string)($row['trip_name']??'Your trip');$action=ucwords(str_replace('_',' ',(string)($row['action_type']??'provider action')));$provider=ucwords(str_replace('_',' ',(string)($row['provider_slug']??'provider')));$status=(string)($row['status']??'');$money='';
+        if(($row['amount']??null)!==null)$money=' Quote: '.(string)($row['currency']?:'USD').' '.number_format((float)$row['amount'],2).'.';
+        if(($row['fee_amount']??null)!==null)$money.=' Fee: '.(string)($row['currency']?:'USD').' '.number_format((float)$row['fee_amount'],2).'.';
+        $prefix=$trip.' — '.$action.' via '.$provider.'.';
+        return match($status){
+            'awaiting_approval'=>$prefix.' The locked provider quote is waiting for your explicit transaction approval. Nothing has been executed yet.'.$money.' Open Booking & Trip Readiness to review it. This chat did not refresh the provider.',
+            'approved'=>$prefix.' You approved the locked transaction quote, but the provider action has not completed yet. Open Booking & Trip Readiness to execute it or open the provider handoff.'.$money,
+            'executing'=>$prefix.' The saved ledger says execution is in progress, not completed. Do not assume the booking or cancellation succeeded until the ledger reaches Completed.',
+            'handoff_pending'=>$prefix.' The provider checkout was opened, but Vacation Brain cannot see what happened there. The ledger is waiting for you to confirm whether checkout actually completed.',
+            'verification_pending'=>$prefix.' The destructive-action outcome is uncertain. Do not retry it. Verify the reservation with the provider first; Vacation Brain stopped specifically to prevent a duplicate cancellation or other repeated mutation.',
+            'completed'=>$prefix.' The saved transaction ledger says Completed.'.((string)($row['adapter_mode']??'')==='provider_handoff'?' For a provider handoff, that means user-confirmed Booked, not provider-verified Confirmed.':' The direct provider action was recorded as completed and verified.').' This answer used saved ledger state and did not contact the provider.',
+            'failed'=>$prefix.' The last provider action stopped or failed and is not completed. Review the action before trying a new path.',
+            default=>$prefix.' The saved transaction state is '.str_replace('_',' ',$status).'. Nothing should be treated as completed unless the ledger reaches Completed.',
+        };
     }
 
     private function isLiveTripQuestion(string $q): bool

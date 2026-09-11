@@ -103,6 +103,9 @@ jobs:
       - name: Check Proactive Vacation Brain contract
         run: php tests/proactive_vacation_brain_contract.php
 
+      - name: Check Booking & Action Execution contract
+        run: php tests/booking_action_execution_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
@@ -143,8 +146,9 @@ jobs:
           test -f db/045_traveler_memory_graph.sql
           test -f db/046_live_travel_providers.sql
           test -f db/047_proactive_vacation_brain.sql
+          test -f db/048_booking_action_execution.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 47
+          test "$COUNT" -eq 48
 
       - name: Validate WebP media
         shell: bash
@@ -187,6 +191,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-action.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-execution.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-bookings.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'booking-action.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-lodging.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'flight-tracking.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'travel-mode.php'
@@ -211,6 +216,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TravelDataProviderService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/LiveTravelDataProviderService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/LiveTravelAgentContextService.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/BookingActionAgentContextService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripIntelligenceService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripLiveIntelligenceService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripSupervisorService.php'
@@ -219,6 +225,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentActionService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentExecutionService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripBookingService.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripBookingActionService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripFlightTrackingService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripBookingReminderService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripTravelOperationsService.php'
@@ -258,6 +265,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-command-center.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-command-center.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-bookings.css'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/booking-actions.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-booking-summary.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-mode.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-mode.js'
@@ -289,6 +297,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'db/045_traveler_memory_graph.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/046_live_travel_providers.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/047_proactive_vacation_brain.sql'
+          unzip -l vacation-brain-deploy.zip | grep -q 'db/048_booking_action_execution.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-trucker-hat.webp'
