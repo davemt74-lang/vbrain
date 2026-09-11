@@ -7,9 +7,16 @@ verify_csrf();
 
 $tripId=(int)($_POST['trip_id']??0);$actionId=(int)($_POST['action_id']??0);$command=strtolower(trim((string)($_POST['command']??'')));
 try{
-    $service=new TripAgentExecutionService(db());if(!$service->ready())throw new RuntimeException('Run System Upgrade to enable Action Execution + Approval.');
+    $pdo=db();$service=new TripAgentExecutionService($pdo);if(!$service->ready())throw new RuntimeException('Run System Upgrade to enable Action Execution + Approval.');
     if($command==='edit'){$service->editProposal($userId,$tripId,$actionId,$_POST);flash('success','Proposal updated. Review it and approve when ready.');}
-    elseif($command==='approve'){$service->approveAndApply($userId,$tripId,$actionId,$_POST);flash('success','Approved. Vacation Brain applied the proposed trip change and completed the Next Move.');}
+    elseif($command==='approve'){
+        $completed=$service->approveAndApply($userId,$tripId,$actionId,$_POST);
+        if(($completed['proposal_type']??'')==='booking_handoff'){
+            $bookingService=new TripBookingService($pdo);
+            if($bookingService->ready()){$bookingService->syncApprovedHandoff($userId,$tripId,$actionId);flash('success','Approved. Vacation Brain saved this as Ready to Book. Confirm live availability, final price, terms, and payment with the provider before marking it booked.');}
+            else flash('success','Approved. Run System Upgrade to add this booking handoff to Trip Readiness.');
+        }else flash('success','Approved. Vacation Brain applied the proposed trip change and completed the Next Move.');
+    }
     elseif($command==='reject'){$service->reject($userId,$tripId,$actionId);flash('success','Proposal rejected. Vacation Brain will not apply that change.');}
     elseif($command==='retry'){$service->retry($userId,$tripId,$actionId);flash('success','The specialist agent is retrying this Next Move.');}
     else throw new InvalidArgumentException('Unknown execution command.');
