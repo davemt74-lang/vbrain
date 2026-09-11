@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 /**
  * Gives the main Vacation Brain agent read-only context from the nearest active
- * trip's already-saved intelligence snapshots. It never refreshes a provider and
- * never includes booking confirmation codes, booking notes, or private Trip Memory notes.
+ * trip's already-saved intelligence snapshots plus the persisted proactive issue
+ * ledger. It never refreshes a provider and never includes booking confirmation
+ * codes, booking notes, payment data, or private Trip Memory notes.
  */
 final class LiveTravelAgentContextService
 {
@@ -12,20 +13,24 @@ final class LiveTravelAgentContextService
 
     public function context(int $userId): string
     {
-        $trip=$this->nearestTrip($userId);if(!$trip||!db_table_exists('trip_intelligence_snapshots'))return '';
-        $tripId=(int)$trip['id'];$dashboard=(new TripIntelligenceService($this->pdo))->dashboard($userId,$tripId);$health=(new TripLiveIntelligenceService($this->pdo))->health($dashboard);$snap=$dashboard['snapshots']??[];$facts=[];
-        $weather=$this->payload($snap,'weather');if(!empty($weather['ok'])){$day=$weather['days'][0]??[];$parts=[];if(isset($day['high']))$parts[]='high '.round((float)$day['high']).'°';if(isset($day['precip_probability']))$parts[]='rain '.round((float)$day['precip_probability']).'%';if(!empty($day['conditions']))$parts[]=(string)$day['conditions'];if($parts)$facts[]='weather: '.implode(', ',$parts).' ('.($health['weather']['freshness']??'unknown freshness').')';}
-        $flights=$this->payload($snap,'flights');if(!empty($flights['booked_statuses'])){foreach(array_slice((array)$flights['booked_statuses'],0,3) as $row){if(!is_array($row))continue;$line='flight '.(string)($row['flight_number']??'').' status '.(string)($row['status']??'unknown');$dep=(array)($row['departure']??[]);if(!empty($dep['gate']))$line.=', departure gate '.(string)$dep['gate'];if(isset($dep['delay'])&&$dep['delay']!==null)$line.=', departure delay '.(int)$dep['delay'].'m';$facts[]=$line.' ('.($health['flights']['freshness']??'unknown freshness').')';}}
-        elseif(!empty($flights['ok'])&&isset($flights['min_price'])&&$flights['min_price']!==null)$facts[]='indicative airfare from '.(string)($flights['currency']??'USD').' '.number_format((float)$flights['min_price'],0).' — not a bookable fare claim ('.($health['flights']['freshness']??'unknown freshness').')';
-        $lodging=$this->payload($snap,'lodging');if(!empty($lodging['ok'])){$line='lodging snapshot '.count((array)($lodging['items']??[])).' results';if(isset($lodging['min_price'])&&$lodging['min_price']!==null)$line.=', from '.(string)($lodging['currency']??'USD').' '.number_format((float)$lodging['min_price'],0);$facts[]=$line.' ('.($health['lodging']['freshness']??'unknown freshness').')';}
-        $events=$this->payload($snap,'events');if(!empty($events['items']))$facts[]='events snapshot has '.count((array)$events['items']).' matching events ('.($health['events']['freshness']??'unknown freshness').')';$places=$this->payload($snap,'places');if(!empty($places['items']))$facts[]='local places snapshot has '.count((array)$places['items']).' results ('.($health['places']['freshness']??'unknown freshness').')';
-        if(!$facts)return '';$destination=trim((string)($trip['destination_name']??''))?:trim((string)$trip['name']);$dates=trim((string)($trip['date_label']??''));
-        return 'LIVE TRIP CONTEXT (saved snapshots only; no provider refresh was triggered): nearest active trip "'.(string)$trip['name'].'" to '.$destination.($dates!==''?' · '.$dates:'').'. '.implode('; ',$facts).'. Never treat indicative airfare or lodging search results as confirmed bookings. Booking confirmation codes, booking notes, and private trip-memory notes are excluded.';
+        $trip=$this->nearestTrip($userId);if(!$trip)return '';$tripId=(int)$trip['id'];$facts=[];$health=[];
+        if(db_table_exists('trip_intelligence_snapshots')){
+            $dashboard=(new TripIntelligenceService($this->pdo))->dashboard($userId,$tripId);$health=(new TripLiveIntelligenceService($this->pdo))->health($dashboard);$snap=$dashboard['snapshots']??[];
+            $weather=$this->payload($snap,'weather');if(!empty($weather['ok'])){$day=$weather['days'][0]??[];$parts=[];if(isset($day['high']))$parts[]='high '.round((float)$day['high']).'°';if(isset($day['precip_probability']))$parts[]='rain '.round((float)$day['precip_probability']).'%';if(!empty($day['conditions']))$parts[]=(string)$day['conditions'];if($parts)$facts[]='weather: '.implode(', ',$parts).' ('.($health['weather']['freshness']??'unknown freshness').')';}
+            $flights=$this->payload($snap,'flights');if(!empty($flights['booked_statuses'])){foreach(array_slice((array)$flights['booked_statuses'],0,3) as $row){if(!is_array($row))continue;$line='flight '.(string)($row['flight_number']??'').' status '.(string)($row['status']??'unknown');$dep=(array)($row['departure']??[]);if(!empty($dep['gate']))$line.=', departure gate '.(string)$dep['gate'];if(isset($dep['delay'])&&$dep['delay']!==null)$line.=', departure delay '.(int)$dep['delay'].'m';$facts[]=$line.' ('.($health['flights']['freshness']??'unknown freshness').')';}}
+            elseif(!empty($flights['ok'])&&isset($flights['min_price'])&&$flights['min_price']!==null)$facts[]='indicative airfare from '.(string)($flights['currency']??'USD').' '.number_format((float)$flights['min_price'],0).' — not a bookable fare claim ('.($health['flights']['freshness']??'unknown freshness').')';
+            $lodging=$this->payload($snap,'lodging');if(!empty($lodging['ok'])){$line='lodging snapshot '.count((array)($lodging['items']??[])).' results';if(isset($lodging['min_price'])&&$lodging['min_price']!==null)$line.=', from '.(string)($lodging['currency']??'USD').' '.number_format((float)$lodging['min_price'],0);$facts[]=$line.' ('.($health['lodging']['freshness']??'unknown freshness').')';}
+            $events=$this->payload($snap,'events');if(!empty($events['items']))$facts[]='events snapshot has '.count((array)$events['items']).' matching events ('.($health['events']['freshness']??'unknown freshness').')';$places=$this->payload($snap,'places');if(!empty($places['items']))$facts[]='local places snapshot has '.count((array)$places['items']).' results ('.($health['places']['freshness']??'unknown freshness').')';
+        }
+        $proactive='';try{if(class_exists('ProactiveTravelService')){$service=new ProactiveTravelService($this->pdo);if($service->ready())$proactive=$service->agentContext($userId,$tripId,6);}}catch(Throwable){}
+        if(!$facts&&$proactive==='')return '';$destination=trim((string)($trip['destination_name']??''))?:trim((string)$trip['name']);$dates=trim((string)($trip['date_label']??''));$sections=[];
+        if($facts)$sections[]='LIVE TRIP CONTEXT (saved snapshots only; no provider refresh was triggered): nearest active trip "'.(string)$trip['name'].'" to '.$destination.($dates!==''?' · '.$dates:'').'. '.implode('; ',$facts).'. Never treat indicative airfare or lodging search results as confirmed bookings. Booking confirmation codes, booking notes, payment data, and private trip-memory notes are excluded.';
+        if($proactive!=='')$sections[]=$proactive;return implode("\n\n",$sections);
     }
 
     public function fallbackSummary(int $userId): ?array
     {
-        $trip=$this->nearestTrip($userId);if(!$trip)return null;$dashboard=(new TripIntelligenceService($this->pdo))->dashboard($userId,(int)$trip['id']);$snap=$dashboard['snapshots']??[];$health=(new TripLiveIntelligenceService($this->pdo))->health($dashboard);return ['trip'=>$trip,'health'=>$health,'weather'=>$this->payload($snap,'weather'),'flights'=>$this->payload($snap,'flights'),'lodging'=>$this->payload($snap,'lodging'),'events'=>$this->payload($snap,'events'),'places'=>$this->payload($snap,'places')];
+        $trip=$this->nearestTrip($userId);if(!$trip)return null;$dashboard=(new TripIntelligenceService($this->pdo))->dashboard($userId,(int)$trip['id']);$snap=$dashboard['snapshots']??[];$health=(new TripLiveIntelligenceService($this->pdo))->health($dashboard);$proactive=[];try{if(class_exists('ProactiveTravelService')){$service=new ProactiveTravelService($this->pdo);if($service->ready())$proactive=$service->issuesForTrip($userId,(int)$trip['id'],6,true);}}catch(Throwable){}return ['trip'=>$trip,'health'=>$health,'weather'=>$this->payload($snap,'weather'),'flights'=>$this->payload($snap,'flights'),'lodging'=>$this->payload($snap,'lodging'),'events'=>$this->payload($snap,'events'),'places'=>$this->payload($snap,'places'),'proactive'=>$proactive];
     }
 
     private function nearestTrip(int $userId): ?array
