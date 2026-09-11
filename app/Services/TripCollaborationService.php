@@ -99,8 +99,6 @@ final class TripCollaborationService
         $owner=$this->owner($tripId);if(strtolower((string)$owner['email'])===$email)throw new InvalidArgumentException('The trip owner is already part of this trip.');
         $existing=$this->pdo->prepare("SELECT tc.id FROM trip_collaborators tc JOIN users u ON u.id=tc.user_id WHERE tc.dream_trip_id=? AND LOWER(u.email)=LOWER(?) AND tc.status='active' LIMIT 1");
         $existing->execute([$tripId,$email]);if($existing->fetchColumn())throw new DomainException('That person is already a collaborator on this trip.');
-
-        // Revoke earlier pending invitations to the same address so only one link works.
         $this->pdo->prepare("UPDATE trip_collaboration_invites SET status='revoked',revoked_at=NOW(),updated_at=NOW() WHERE dream_trip_id=? AND LOWER(invited_email)=LOWER(?) AND status='pending'")->execute([$tripId,$email]);
         $token=bin2hex(random_bytes(32));$hash=hash('sha256',$token);$expires=(new DateTimeImmutable())->modify('+7 days');
         $stmt=$this->pdo->prepare("INSERT INTO trip_collaboration_invites (dream_trip_id,invited_by,invited_email,role,token_hash,status,expires_at) VALUES (?,?,?,?,?,'pending',?)");
@@ -181,7 +179,8 @@ final class TripCollaborationService
 
     public function setRsvp(int $userId,int $tripId,string $rsvp): void
     {
-        $access=$this->requireAccess($userId,$tripId,'view');if(!empty($access['is_owner']))throw new DomainException('The trip owner is always listed as going.');
+        // RSVP is an active participation capability, so Viewer remains fully read-only.
+        $access=$this->requireAccess($userId,$tripId,'vote');if(!empty($access['is_owner']))throw new DomainException('The trip owner is always listed as going.');
         $rsvp=strtolower(trim($rsvp));if(!in_array($rsvp,self::RSVPS,true))throw new InvalidArgumentException('Unknown RSVP status.');
         $stmt=$this->pdo->prepare("UPDATE trip_collaborators SET rsvp=?,updated_at=NOW() WHERE dream_trip_id=? AND user_id=? AND status='active'");$stmt->execute([$rsvp,$tripId,$userId]);
         if($stmt->rowCount()!==1)throw new OutOfBoundsException('Collaborator not found.');$this->event($tripId,$userId,'rsvp_changed',$userId,null,['rsvp'=>$rsvp]);
@@ -215,7 +214,6 @@ final class TripCollaborationService
         if($stmt->rowCount()!==1)throw new OutOfBoundsException('Trip item not found.');$this->event($tripId,$userId,'item_removed',$userId,null,['item_id'=>$itemId]);
     }
 
-    /** Safe projection for owner and collaborators; never returns private operational fields. */
     public function snapshot(int $userId,int $tripId): array
     {
         $access=$this->requireAccess($userId,$tripId,'view');
@@ -244,13 +242,11 @@ final class TripCollaborationService
 
     private function owner(int $tripId): array
     {
-        // Email is fetched only inside this private owner/invite boundary and is never included in shared snapshots.
         $stmt=$this->pdo->prepare('SELECT u.id,u.email,u.display_name,u.username,u.avatar_url FROM dream_trips dt JOIN users u ON u.id=dt.user_id WHERE dt.id=? LIMIT 1');$stmt->execute([$tripId]);$row=$stmt->fetch();if(!$row)throw new OutOfBoundsException('Trip not found.');return $row;
     }
 
     private function user(int $userId): array
     {
-        // Email is needed only to bind invite acceptance to the exact invited account.
         $stmt=$this->pdo->prepare('SELECT id,email,display_name,username,avatar_url FROM users WHERE id=? AND status="active" LIMIT 1');$stmt->execute([$userId]);$row=$stmt->fetch();if(!$row)throw new OutOfBoundsException('User account not found.');return $row;
     }
 
