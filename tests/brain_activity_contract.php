@@ -26,7 +26,9 @@ foreach([
     'function agentStats',
     'function intelligenceStats',
     'function itemStats',
+    'function userEventStats',
     'function recentSignals',
+    'function userEventSignal',
     'function seriesForChannel',
     'dream_trips',
     'dashboard_destination_context',
@@ -35,16 +37,25 @@ foreach([
     'trip_agent_messages',
     'trip_intelligence_snapshots',
     'dream_trip_items',
-    'DATE_SUB(NOW(),INTERVAL 1 DAY)',
+    'user_events',
+    'occurred_at>=DATE_SUB(NOW(),INTERVAL 1 DAY)',
+    "'dream_trip_created'",
+    "'dream_trip_viewed'",
+    "'dream_item_added'",
+    "'Trip planned'",
+    "'Itinerary updated'",
     'array_fill(0,24,0)',
     'watch_alerts_24h',
     'agent_actions_24h',
     'provider_refreshes_24h',
+    'planning_actions_24h',
     'fresh data',
+    'OutOfBoundsException',
 ] as $needle){if(strpos($service,$needle)===false){fwrite(STDERR,"Brain activity service missing {$needle}\n");exit(1);}}
+if(strpos($service,"db_column_exists('user_events','created_at')")!==false){fwrite(STDERR,"Brain activity must use the canonical user_events.occurred_at column.\n");exit(1);}
 
 $api=$read('api/brain-activity.php');
-foreach(['require_auth','VacationBrainActivityService','trip_id','activity','application/json'] as $needle){if(strpos($api,$needle)===false){fwrite(STDERR,"Brain activity API missing {$needle}\n");exit(1);}}
+foreach(['require_auth','VacationBrainActivityService','trip_id','activity','application/json','Cache-Control','OutOfBoundsException','http_response_code(404)','temporarily unavailable'] as $needle){if(strpos($api,$needle)===false){fwrite(STDERR,"Brain activity API missing {$needle}\n");exit(1);}}
 
 $js=$read('assets/brain-activity.js');
 foreach(['data-vb-brain-config',"page==='today.php'",'[data-trip-intelligence]','.vb-local-section','.trip-agent-tabs','insertAdjacentElement(\'afterend\'','Vacation Brain Activity','Agent EEG','Last 24 hours · actual system activity','setInterval','document.visibilityState'] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Brain Activity UI missing {$needle}\n");exit(1);}}
