@@ -54,7 +54,9 @@ final class LocalConciergeService
         $events=$this->safeProvider(fn()=>$providers->events($providerTrip),'events');
         $weather=$this->safeProvider(fn()=>$providers->weather($providerTrip),'weather');
         $suggestions=$this->rankSuggestions($trip,$window,$interests,$places,$events,$weather);
-        if(count($suggestions)<8)$suggestions=$this->appendSavedResearch($trip,$window,$interests,$suggestions,$weather);
+        // Saved destination research is valid only when the trip destination is the active anchor.
+        // Never pad a device-location run with recommendations from a potentially distant destination.
+        if($mode==='destination'&&count($suggestions)<8)$suggestions=$this->appendSavedResearch($trip,$window,$interests,$suggestions,$weather);
         $suggestions=array_slice($suggestions,0,24);
 
         $health=[
