@@ -20,7 +20,7 @@ $migration=$read('db/036_travel_watches.sql');
 foreach(['CREATE TABLE travel_watches','CREATE TABLE travel_watch_snapshots','CREATE TABLE travel_watch_events','uq_travel_watch_target','uq_travel_watch_event_fingerprint','idx_travel_watch_due','watch_weather','watch_flights','watch_events','watch_places',"'app_version','1.28'"] as $needle){if(strpos($migration,$needle)===false){fwrite(STDERR,"Travel watch migration missing {$needle}\n");exit(1);}}
 
 $service=$read('app/Services/TravelWatchService.php');
-foreach(['class TravelWatchService','function saveTrip','function saveDestination','function toggleDestination','function updateWatch','function runDue','function runOne','TripIntelligenceService','TravelDataProviderService','travel_watch_snapshots','travel_watch_events','NotificationService','trip_agent_messages','fare_drop','weather_alert','new_events','local_change','max(25.0','>=20','count($new)>=2','INSERT IGNORE'] as $needle){if(strpos($service,$needle)===false){fwrite(STDERR,"Travel watch engine missing {$needle}\n");exit(1);}}
+foreach(['class TravelWatchService','MAX_ACTIVE_WATCHES=25','function saveTrip','function saveDestination','function toggleDestination','function updateWatch','function runDue','function runOne','function claimWatch','function assertCapacity','function resolveDestinationTarget',"last_status='checking'",'TripIntelligenceService','TravelDataProviderService','travel_watch_snapshots','travel_watch_events','NotificationService','trip_agent_messages','fare_drop','weather_alert','new_events','local_change','max(25.0','>=20','count($new)>=2','INSERT IGNORE'] as $needle){if(strpos($service,$needle)===false){fwrite(STDERR,"Travel watch engine missing {$needle}\n");exit(1);}}
 if(strpos($service,"'flights'=>")!==false&&strpos($service,"target_type']??'')==='trip'")===false){fwrite(STDERR,"Destination-only watches must not call the flight provider without a trip route.\n");exit(1);}
 
 $runner=$read('bin/run-travel-watches.php');
@@ -33,7 +33,7 @@ $page=$read('watches.php');
 foreach(['Destination Watches','Watch a planned trip','Weather','Flights','Events','Local','What the agents noticed','Noise control','run-travel-watches.php','migration 036'] as $needle){if(strpos($page,$needle)===false){fwrite(STDERR,"Destination Watches page missing {$needle}\n");exit(1);}}
 
 $js=$read('assets/travel-watches.js');
-foreach(['data-vb-watch-config','toggle_destination','data-vb-watch-button','Watch trip','Watching ✓','data-vb-watches-nav','setupNav'] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Travel watch browser integration missing {$needle}\n");exit(1);}}
+foreach(['data-vb-watch-config','toggle_destination','data-vb-watch-button','Watch trip','Watching ✓','data-vb-watches-nav','setupNav',"document.querySelector('.vb-trip-card,.vb-wide-trip-card,[data-trip-intelligence]')"] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Travel watch browser integration missing {$needle}\n");exit(1);}}
 
 $css=$read('assets/travel-watches.css');
 foreach(['travel-watch-card','travel-watch-signals','travel-watch-event','vb-watch-button','trip-watch-shortcut'] as $needle){if(strpos($css,$needle)===false){fwrite(STDERR,"Travel watch styling missing {$needle}\n");exit(1);}}
