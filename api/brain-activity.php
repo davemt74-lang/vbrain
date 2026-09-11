@@ -41,11 +41,21 @@ function vb_apply_agent_jobs_to_activity(array $activity,array $jobs): array
     return $activity;
 }
 
+function vb_apply_agent_automation_to_activity(array $activity,array $automation): array
+{
+    $pending=(int)($automation['pending_total']??0);$dispatching=(int)($automation['dispatching_total']??0);$activity['pending_automation_triggers']=$pending;$activity['dispatching_automation_triggers']=$dispatching;if($pending+$dispatching<1)return $activity;
+    $byAgent=is_array($automation['by_agent']??null)?$automation['by_agent']:[];$lastAt=$automation['last_at']??null;
+    foreach($activity['channels']??[] as &$channel){$key=(string)($channel['key']??'overview');$counts=is_array($byAgent[$key]??null)?$byAgent[$key]:[];$count=(int)($counts['pending']??0)+(int)($counts['deferred']??0)+(int)($counts['dispatching']??0);if($key==='overview')$count=$pending+$dispatching;if($count<1)continue;$channel['metrics']=is_array($channel['metrics']??null)?$channel['metrics']:[];$channel['metrics']['watch_triggers_waiting']=$count;$jobState=(string)($channel['job_state']??'idle');if(in_array($jobState,['running','preparing','queued'],true))continue;$channel['job_state']=$dispatching>0?'dispatching':'watch_triggered';$channel['intensity']=max($dispatching>0?60:52,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']=$dispatching>0?'A meaningful watch change is being converted into a proactive agent batch.':'A meaningful watch change is waiting for proactive agent review.';if($lastAt)$channel['last_activity']=$lastAt;if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max($dispatching>0?60:52,(int)$channel['series'][$last]);}}
+    unset($channel);if((int)($activity['active_agent_jobs']??0)===0){$activity['score']=max($dispatching>0?58:50,(int)($activity['score']??0));$activity['status']=$dispatching>0?'Dispatching Proactive Agents':'Watch Change Waiting for Agents';if(($activity['series']??[])){$last=count($activity['series'])-1;$activity['series'][$last]=max($dispatching>0?58:50,(int)$activity['series'][$last]);}}
+    return $activity;
+}
+
 try{
     $pdo=db();$scopeTrip=$tripId>0?$tripId:null;
     $snapshot=(new VacationBrainActivityService($pdo))->snapshot($userId,$scopeTrip);
     $jobService=new TripAgentJobService($pdo);$jobs=$jobService->activityStates($userId,$scopeTrip);
     $snapshot=vb_apply_agent_jobs_to_activity($snapshot,$jobs);
+    $automationService=new TripAgentAutomationService($pdo);if($automationService->ready())$snapshot=vb_apply_agent_automation_to_activity($snapshot,$automationService->activityState($userId,$scopeTrip));
     echo json_encode(['ok'=>true,'activity'=>$snapshot],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 }catch(OutOfBoundsException $e){
     http_response_code(404);

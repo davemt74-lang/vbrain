@@ -17,7 +17,7 @@ final class TripAgentBatchService
     public function create(int $userId,int $tripId,array $agentTypes,string $scope='single'): array
     {
         $this->requireReady();$this->assertTrip($userId,$tripId);$agents=$this->agents($agentTypes);if(!$agents)throw new InvalidArgumentException('At least one trip agent is required.');
-        $scope=$scope==='all'?'all':'single';$required=$this->requiredTypes($agents);
+        $scope=in_array($scope,['single','all','automation'],true)?$scope:'single';$required=$this->requiredTypes($agents,$scope);
         $stmt=$this->pdo->prepare("INSERT INTO trip_agent_batches (user_id,dream_trip_id,scope,agent_types_json,required_types_json,status) VALUES (?,?,?,?,?,'queued')");
         $stmt->execute([$userId,$tripId,$scope,$this->json($agents),$this->json($required)]);
         return $this->batchForUser($userId,(int)$this->pdo->lastInsertId())??[];
@@ -101,9 +101,10 @@ final class TripAgentBatchService
         $stmt=$this->pdo->prepare("SELECT agent_type,status,result_json,error_message,completed_at FROM trip_agent_jobs WHERE batch_id=? AND agent_type<>'overview' ORDER BY id ASC");$stmt->execute([$batchId]);$out=[];foreach($stmt->fetchAll()?:[] as $row){$result=json_decode((string)($row['result_json']??''),true);$out[(string)$row['agent_type']]=['status'=>(string)$row['status'],'message'=>is_array($result)?$this->clip((string)($result['message']??''),2500):'','error'=>$this->clip((string)($row['error_message']??''),500),'completed_at'=>$row['completed_at']??null];}return $out;
     }
 
-    private function requiredTypes(array $agents): array
+    private function requiredTypes(array $agents,string $scope='single'): array
     {
-        $out=[];foreach($agents as $agent){$types=match($agent){'weather'=>['weather'],'flights'=>['flights'],'events'=>['events','weather'],'local'=>['places','weather'],'itinerary'=>['weather','events','places'],'budget'=>['flights'],default=>self::DATA_TYPES};foreach($types as $type)$out[$type]=true;}return array_values(array_keys($out));
+        $effective=$agents;if($scope==='automation'&&count($agents)>1){$withoutOverview=array_values(array_filter($agents,static fn(string $agent): bool=>$agent!=='overview'));if($withoutOverview)$effective=$withoutOverview;}
+        $out=[];foreach($effective as $agent){$types=match($agent){'weather'=>['weather'],'flights'=>['flights'],'events'=>['events','weather'],'local'=>['places','weather'],'itinerary'=>['weather','events','places'],'budget'=>['flights'],default=>self::DATA_TYPES};foreach($types as $type)$out[$type]=true;}return array_values(array_keys($out));
     }
 
     private function agents(array $values): array
