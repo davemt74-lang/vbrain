@@ -77,7 +77,8 @@ final class TripCollaborationService
             'username'=>(string)($owner['username']??''),'avatar_url'=>(string)($owner['avatar_url']??''),'status'=>'active','is_owner'=>true,
         ]];
         if(!$this->ready())return $rows;
-        $stmt=$this->pdo->prepare("SELECT tc.user_id,tc.role,tc.rsvp,tc.status,u.display_name,u.username,u.avatar_url,u.email
+        // Shared rosters deliberately do not fetch collaborator email addresses.
+        $stmt=$this->pdo->prepare("SELECT tc.user_id,tc.role,tc.rsvp,tc.status,u.display_name,u.username,u.avatar_url
             FROM trip_collaborators tc JOIN users u ON u.id=tc.user_id
             WHERE tc.dream_trip_id=? AND tc.status='active' ORDER BY FIELD(tc.role,'co_planner','traveler','viewer'),tc.joined_at,tc.id");
         $stmt->execute([$tripId]);
@@ -140,14 +141,19 @@ final class TripCollaborationService
         try{
             $stmt=$this->pdo->prepare("SELECT * FROM trip_collaboration_invites WHERE token_hash=? LIMIT 1 FOR UPDATE");$stmt->execute([$hash]);$invite=$stmt->fetch();if(!$invite)throw new OutOfBoundsException('Invitation not found.');
             if((string)$invite['status']!=='pending')throw new DomainException('This invitation is no longer active.');
-            if(strtotime((string)$invite['expires_at'])<=time()){$this->pdo->prepare("UPDATE trip_collaboration_invites SET status='expired',updated_at=NOW() WHERE id=?")->execute([(int)$invite['id']]);throw new DomainException('This invitation has expired. Ask the trip owner for a new link.');}
+            if(strtotime((string)$invite['expires_at'])<=time()){
+                $this->pdo->prepare("UPDATE trip_collaboration_invites SET status='expired',updated_at=NOW() WHERE id=? AND status='pending'")->execute([(int)$invite['id']]);
+                $this->pdo->commit();
+                throw new DomainException('This invitation has expired. Ask the trip owner for a new link.');
+            }
             $user=$this->user($userId);if(strtolower((string)$user['email'])!==strtolower((string)$invite['invited_email']))throw new DomainException('This invitation was sent to a different account email. Sign in with the invited account.');
             $tripId=(int)$invite['dream_trip_id'];$owner=$this->owner($tripId);if((int)$owner['id']===$userId)throw new DomainException('The trip owner cannot accept a collaborator invitation.');
             $role=$this->role((string)$invite['role']);
             $this->pdo->prepare("INSERT INTO trip_collaborators (dream_trip_id,user_id,role,rsvp,status,added_by,joined_at) VALUES (?,?,?,'unknown','active',?,NOW())
                 ON DUPLICATE KEY UPDATE role=VALUES(role),status='active',removed_at=NULL,added_by=VALUES(added_by),joined_at=NOW(),updated_at=NOW()")
                 ->execute([$tripId,$userId,$role,(int)$invite['invited_by']]);
-            $this->pdo->prepare("UPDATE trip_collaboration_invites SET status='accepted',accepted_by=?,accepted_at=NOW(),updated_at=NOW() WHERE id=? AND status='pending'")->execute([$userId,(int)$invite['id']]);
+            $update=$this->pdo->prepare("UPDATE trip_collaboration_invites SET status='accepted',accepted_by=?,accepted_at=NOW(),updated_at=NOW() WHERE id=? AND status='pending'");
+            $update->execute([$userId,(int)$invite['id']]);if($update->rowCount()!==1)throw new DomainException('This invitation changed before it could be accepted.');
             $this->event($tripId,$userId,'joined',$userId,null,['role'=>$role]);$this->pdo->commit();return $tripId;
         }catch(Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
     }
@@ -192,8 +198,7 @@ final class TripCollaborationService
 
     public function addItem(int $userId,int $tripId,array $input): int
     {
-        $this->requireReady();$access=$this->requireAccess($userId,$tripId,'plan');
-        if(!empty($access['is_owner'])){(new DreamService($this->pdo))->addItem($userId,$tripId,$input);$stmt=$this->pdo->prepare('SELECT id FROM dream_trip_items WHERE dream_trip_id=? ORDER BY id DESC LIMIT 1');$stmt->execute([$tripId]);return (int)$stmt->fetchColumn();}
+        $this->requireReady();$this->requireAccess($userId,$tripId,'plan');
         $title=$this->clip((string)($input['title']??''),255);if($title==='')throw new InvalidArgumentException('Give the trip item a name.');
         $type=strtolower(trim((string)($input['item_type']??'idea')));if(!in_array($type,['idea','hotel','food','activity','flight','experience','merch'],true))$type='idea';
         $notes=$this->clip((string)($input['notes']??''),1000);$price=($input['price']??'')!==''&&$input['price']!==null?max(0,(float)$input['price']):null;
@@ -239,11 +244,13 @@ final class TripCollaborationService
 
     private function owner(int $tripId): array
     {
+        // Email is fetched only inside this private owner/invite boundary and is never included in shared snapshots.
         $stmt=$this->pdo->prepare('SELECT u.id,u.email,u.display_name,u.username,u.avatar_url FROM dream_trips dt JOIN users u ON u.id=dt.user_id WHERE dt.id=? LIMIT 1');$stmt->execute([$tripId]);$row=$stmt->fetch();if(!$row)throw new OutOfBoundsException('Trip not found.');return $row;
     }
 
     private function user(int $userId): array
     {
+        // Email is needed only to bind invite acceptance to the exact invited account.
         $stmt=$this->pdo->prepare('SELECT id,email,display_name,username,avatar_url FROM users WHERE id=? AND status="active" LIMIT 1');$stmt->execute([$userId]);$row=$stmt->fetch();if(!$row)throw new OutOfBoundsException('User account not found.');return $row;
     }
 
