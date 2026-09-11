@@ -23,7 +23,7 @@ function vb_apply_agent_jobs_to_activity(array $activity,array $jobs): array
         $channel['job_id']=$running>0||$queued>0?(int)($state['job_id']??0):null;
         if(($running>0||$queued>0)&&!empty($state['last_at']))$channel['last_activity']=(string)$state['last_at'];
         if($running>0){
-            $hasRunning=true;$channel['intensity']=max(92,(int)($channel['intensity']??0));$channel['state']='working';$channel['reason']='Agent is working now · current work phase '.(int)($state['last_progress']??0).'%.'';
+            $hasRunning=true;$channel['intensity']=max(92,(int)($channel['intensity']??0));$channel['state']='working';$channel['reason']='Agent is working now · current work phase '.(int)($state['last_progress']??0).'%. ';
             if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(95,(int)$channel['series'][$last]);}
         }elseif($queued>0){
             $hasQueued=true;$channel['intensity']=max(58,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']='Agent task is queued and waiting for the background worker.';
