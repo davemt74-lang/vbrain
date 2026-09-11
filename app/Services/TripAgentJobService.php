@@ -41,8 +41,8 @@ final class TripAgentJobService
 
     public function cancel(int $userId,int $jobId): array
     {
-        $this->requireReady();$job=$this->rawJob($jobId);if(!$job||(int)$job['user_id']!==$userId)throw new OutOfBoundsException('Agent job not found.');
-        if($job['status']==='queued'){$this->pdo->prepare("UPDATE trip_agent_jobs SET status='cancelled',progress=100,status_text='Cancelled',active_key=NULL,worker_token=NULL,completed_at=NOW() WHERE id=? AND user_id=? AND status='queued'")->execute([$jobId,$userId]);}
+        $this->requireReady();$job=$this->rawJob($jobId);if(!$job||(int)$job['user_id']!==$userId)throw new OutOfBoundsException('Agent job not found.');$batchId=(int)($job['batch_id']??0);
+        if($job['status']==='queued'){$this->pdo->prepare("UPDATE trip_agent_jobs SET status='cancelled',progress=100,status_text='Cancelled',active_key=NULL,worker_token=NULL,completed_at=NOW() WHERE id=? AND user_id=? AND status='queued'")->execute([$jobId,$userId]);if($batchId>0)(new TripAgentBatchService($this->pdo))->cancelIfInactive($batchId);}
         elseif($job['status']==='running')throw new DomainException('This agent is already working and cannot be interrupted safely.');
         return $this->jobForUser($userId,$jobId)??[];
     }
