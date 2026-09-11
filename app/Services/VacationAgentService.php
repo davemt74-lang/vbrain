@@ -63,7 +63,12 @@ final class VacationAgentService
             try{$researchContext=(new DestinationResearchService($this->pdo))->agentContext($userId,2);}catch(Throwable){}
             $dashboardContext='';
             try{$dashboardContext=(new DashboardDestinationContextService($this->pdo))->promptContext($userId);}catch(Throwable){}
-            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($researchContext!==''?"\n\n".$researchContext:'').$dashboardContext;
+            $memoryContext='';
+            try{
+                if(class_exists('TravelerMemoryGraphService')){$graph=new TravelerMemoryGraphService($this->pdo);if($graph->ready())$memoryContext=$graph->agentContext($userId,5);}
+                if($memoryContext===''&&class_exists('TripMemoryService')){$memory=new TripMemoryService($this->pdo);if($memory->ready())$memoryContext=$memory->agentContext($userId);}
+            }catch(Throwable){}
+            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. When Traveler Memory is present, distinguish diagnosis guesses from preferences supported by completed trips, honor ignored learning signals, and never infer private trip notes. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($memoryContext!==''?"\n\n".$memoryContext:'').($researchContext!==''?"\n\n".$researchContext:'').$dashboardContext;
             return (new AiProviderService($this->pdo))->generateText($system,$message,$userId,'agent_chat',450);
         }catch(Throwable){return null;}
     }
@@ -77,7 +82,10 @@ final class VacationAgentService
             return 'Your selected destination context is '.implode(', ',$selected).'. The AI provider is unavailable right now, so I can keep those places selected but I cannot produce a reliable live comparison until the configured agent model responds.';
         }
         if(str_contains($q,'roast'))return $profile['roasts'][0]??'You have successfully outsourced being judged for wanting a vacation.';
-        if(str_contains($q,'learned')||str_contains($q,'know about me')||str_contains($q,'profile')){
+        if(str_contains($q,'learned')||str_contains($q,'know about me')||str_contains($q,'travel history')||str_contains($q,'last trip')||str_contains($q,'liked about')){
+            try{
+                if(class_exists('TravelerMemoryGraphService')){$graph=new TravelerMemoryGraphService($this->pdo);if($graph->ready()){ $ctx=$graph->agentContext($userId,5);if($ctx!=='')return $ctx.' Open Traveler Memory for the full history and correction controls.';}}
+            }catch(Throwable){}
             $top=array_slice(array_values($traits),0,3);$bits=array_map(fn($t)=>$t['name'].' '.(int)$t['score'].'%',$top);return 'Current diagnosis: '.$profile['archetype']['name'].'. Strong signals: '.implode(', ',$bits).'. Translation: '.$profile['archetype']['description'];
         }
         if(str_contains($q,'where should')||str_contains($q,'where do i')||str_contains($q,'destination')){
