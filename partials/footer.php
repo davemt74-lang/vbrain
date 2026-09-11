@@ -41,6 +41,16 @@
     'manage_url'=>app_url('trip-bookings.php?id='.$footerTripId),
 ],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
 <script src="<?=e(app_url('assets/trip-booking-summary.js'))?>"></script>
+<?php
+$footerTravelProminent=false;$footerTravelLabel='Travel Mode';
+try{
+    if(db_column_exists('dream_trips','operational_state')){
+        $footerTravelStmt=db()->prepare('SELECT operational_state,start_date FROM dream_trips WHERE id=? AND user_id=? LIMIT 1');$footerTravelStmt->execute([$footerTripId,(int)$footerUser['id']]);$footerTravelRow=$footerTravelStmt->fetch();
+        if($footerTravelRow){$footerState=(string)($footerTravelRow['operational_state']??'planning');$footerStart=strtotime((string)($footerTravelRow['start_date']??''));$footerDays=$footerStart!==false?(int)floor(($footerStart-strtotime(date('Y-m-d')))/86400):999;$footerTravelProminent=in_array($footerState,['ready','traveling'],true)||($footerDays>=0&&$footerDays<=7);if($footerState==='traveling')$footerTravelLabel='Travel Mode · Live';elseif($footerState==='ready')$footerTravelLabel='Travel Mode · Ready';}
+    }
+}catch(Throwable $e){}
+?>
+<script>(function(){const row=document.querySelector('.trip-intelligence-head-actions');if(!row||row.querySelector('[data-travel-mode-link]'))return;const link=document.createElement('a');link.className=<?=json_encode($footerTravelProminent?'button primary small':'button secondary small')?>;link.setAttribute('data-travel-mode-link','');link.href=<?=json_encode(app_url('travel-mode.php?id='.$footerTripId))?>;link.textContent=<?=json_encode($footerTravelLabel)?>;row.prepend(link);})();</script>
 <?php endif;?>
 <?php if($footerUser && $footerPage!=='match-chat.php'):
 $footerAgentPrefill=(string)($agentComposerPrefill??'');
