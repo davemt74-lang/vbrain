@@ -1,6 +1,7 @@
 <?php
 require __DIR__.'/app/bootstrap.php';
-$userId=require_auth();$pdo=db();$service=new DreamService($pdo);$trips=$service->all($userId);$pageStyles=['assets/trip-intelligence.css'];$title='Plan Trips — Vacation Brain';require __DIR__.'/partials/header.php';
+$userId=require_auth();$pdo=db();$service=new DreamService($pdo);$trips=$service->all($userId);$collaboration=new TripCollaborationService($pdo);$shared=$collaboration->ready()?$collaboration->sharedWithMe($userId):[];$pageStyles=['assets/trip-intelligence.css','assets/trip-collaboration.css'];$title='Plan Trips — Vacation Brain';require __DIR__.'/partials/header.php';
+$roleLabels=['co_planner'=>'Co-planner','traveler'=>'Traveler','viewer'=>'Viewer'];
 ?>
 <section class="dashboard trip-index-page"><div class="shell">
 <div class="dashboard-head trip-index-head"><div><div class="eyebrow">Trip Intelligence · Plan Trip</div><h1>Trips the brain is currently thinking about.</h1><p class="muted">Each trip gets its own weather, flight, event, local-business, itinerary and budget intelligence workspace.</p></div><a class="button primary" href="<?=e(app_url('dream-new.php'))?>">+ New trip</a></div>
@@ -16,5 +17,8 @@ $userId=require_auth();$pdo=db();$service=new DreamService($pdo);$trips=$service
 </a>
 <?php endforeach;?>
 <?php if(!$trips):?><article class="dashboard-card trip-index-empty"><div class="eyebrow">No trips yet</div><h2>Extremely responsible behavior.</h2><p class="muted">Start a trip and Vacation Brain will begin building destination intelligence around it.</p><a class="button primary" href="<?=e(app_url('dream-new.php'))?>">Create your first trip →</a></article><?php endif;?>
-</div></div></section>
+</div>
+
+<?php if($shared):?><section class="vb-shared-index"><div class="dashboard-head"><div><div class="eyebrow">Shared with me</div><h2>Trips other brains invited you into.</h2><p class="muted">Shared workspaces expose only role-appropriate itinerary and trip logistics.</p></div></div><div class="trip-index-grid"><?php foreach($shared as $trip):?><a class="trip-index-card vb-shared-index-card" href="<?=e(app_url('shared-trip.php?id='.(int)$trip['id']))?>"><div class="trip-index-card-top"><span class="trip-status-pill"><?=e($roleLabels[(string)$trip['role']]??ucfirst((string)$trip['role']))?></span><span class="vb-rsvp-badge"><?=e(ucwords(str_replace('_',' ',(string)$trip['rsvp'])))?></span></div><h2><?=e((string)$trip['name'])?></h2><p class="trip-destination"><?=e((string)($trip['destination_name']?:'Destination TBD'))?></p><div class="trip-index-meta"><?php if(!empty($trip['start_date'])):?><span><?=e(date('M j, Y',strtotime((string)$trip['start_date'])))?></span><?php else:?><span>Dates flexible</span><?php endif;?><span>Owner: <?=e((string)($trip['owner_name']?:$trip['owner_username']?:'Traveler'))?></span></div><div class="trip-index-foot"><span>Open shared itinerary, RSVP & votes</span><span>Private owner data excluded</span></div></a><?php endforeach;?></div></section><?php endif;?>
+</div></section>
 <?php require __DIR__.'/partials/footer.php';?>
