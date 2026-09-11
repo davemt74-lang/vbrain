@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** Read-only transaction state for the main Vacation Brain agent. No provider refresh. */
+/** Read-only booking and transaction state for the main Vacation Brain agent. No provider refresh. */
 final class BookingActionAgentContextService
 {
     public function __construct(private PDO $pdo) {}
@@ -13,16 +13,10 @@ final class BookingActionAgentContextService
 
     public function context(int $userId,int $limit=6): string
     {
-        $rows=$this->active($userId,$limit);if(!$rows)return '';$parts=[];
-        foreach($rows as $row){
-            $bits=[];$bits[]=(string)$row['trip_name'];$bits[]=ucwords(str_replace('_',' ',(string)$row['action_type'])).' via '.ucwords(str_replace('_',' ',(string)$row['provider_slug']));$bits[]='status '.str_replace('_',' ',(string)$row['status']);
-            if($row['amount']!==null)$bits[]=(string)($row['currency']?:'USD').' '.number_format((float)$row['amount'],2);
-            if($row['fee_amount']!==null)$bits[]='fee '.(string)($row['currency']?:'USD').' '.number_format((float)$row['fee_amount'],2);
-            if(!empty($row['source_state']))$bits[]='source '.str_replace('_',' ',(string)$row['source_state']);
-            if(!empty($row['expires_at']))$bits[]='quote expires '.(string)$row['expires_at'];
-            $parts[]=implode(' · ',$bits);
-        }
-        return 'BOOKING ACTION STATE (saved transaction ledger only; no provider refresh): '.implode('; ',$parts).'. Planning approval is separate from transaction approval. Never claim a checkout, booking, purchase, modification, or cancellation completed unless its ledger state is completed. A provider-handoff completed state is user-confirmed Booked, not provider-verified Confirmed. verification_pending means the destructive-action outcome is uncertain and must not be retried until the provider state is checked. Provider order/reservation references, encrypted provider state, confirmation codes, booking notes, and payment data are excluded.';
+        $sections=[];$rows=$this->active($userId,$limit);
+        if($rows){$parts=[];foreach($rows as $row){$bits=[];$bits[]=(string)$row['trip_name'];$bits[]=ucwords(str_replace('_',' ',(string)$row['action_type'])).' via '.ucwords(str_replace('_',' ',(string)$row['provider_slug']));$bits[]='status '.str_replace('_',' ',(string)$row['status']);if($row['amount']!==null)$bits[]=(string)($row['currency']?:'USD').' '.number_format((float)$row['amount'],2);if($row['fee_amount']!==null)$bits[]='fee '.(string)($row['currency']?:'USD').' '.number_format((float)$row['fee_amount'],2);if(!empty($row['source_state']))$bits[]='source '.str_replace('_',' ',(string)$row['source_state']);if(!empty($row['expires_at']))$bits[]='quote expires '.(string)$row['expires_at'];$parts[]=implode(' · ',$bits);}$sections[]='BOOKING ACTION STATE (saved transaction ledger only; no provider refresh): '.implode('; ',$parts).'. Planning approval is separate from transaction approval. Never claim a checkout, booking, purchase, modification, or cancellation completed unless its ledger state is completed. A provider-handoff completed state is user-confirmed Booked, not provider-verified Confirmed. verification_pending means the destructive-action outcome is uncertain and must not be retried until the provider state is checked. Provider order/reservation references, encrypted provider state, confirmation codes, booking notes, and payment data are excluded.';}
+        try{if(class_exists('BookingImportAgentContextService')){$imports=new BookingImportAgentContextService($this->pdo);if($imports->ready()){$ctx=$imports->context($userId,8);if($ctx!=='')$sections[]=$ctx;}}}catch(Throwable){}
+        return implode("\n\n",$sections);
     }
 
     /** Pending actions plus the most recent completed result, using only safe ledger columns. */
