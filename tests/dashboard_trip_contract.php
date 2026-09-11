@@ -28,4 +28,5 @@ foreach (['navigator.geolocation','setView','data-use-location'] as $needle) {
 foreach (['CREATE TABLE IF NOT EXISTS dashboard_trip_suggestions',"'local'","'weekend'",'sedona-red-rock-trails','flagstaff-weekend'] as $needle) {
     if (strpos($sql,$needle) === false) { fwrite(STDERR,"Missing dashboard sample data: {$needle}\n"); exit(1); }
 }
+require __DIR__.'/trip_planning_hub_contract.php';
 echo "Dashboard trip contract OK\n";
