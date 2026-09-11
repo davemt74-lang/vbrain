@@ -34,12 +34,13 @@ CREATE TABLE trip_agent_actions (
 
 ALTER TABLE trip_agent_batches
   ADD COLUMN actions_synced_at DATETIME NULL AFTER completed_at,
+  ADD COLUMN actions_sync_error VARCHAR(500) NULL AFTER actions_synced_at,
   ADD KEY idx_trip_agent_batch_actions_sync (actions_synced_at,id);
 
 -- Historical batches predate the action queue. Mark them handled, but leave an in-flight
 -- Overview job unsynced so its eventual result can create the first real Next Moves set.
 UPDATE trip_agent_batches b
-SET b.actions_synced_at=NOW()
+SET b.actions_synced_at=NOW(),b.actions_sync_error=NULL
 WHERE b.actions_synced_at IS NULL
   AND NOT EXISTS (
     SELECT 1 FROM trip_agent_jobs j
