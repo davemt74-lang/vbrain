@@ -35,7 +35,8 @@ $brain=$read('api/brain-activity.php');
 foreach(['vb_apply_agent_automation_to_activity','TripAgentAutomationService','pending_automation_triggers','dispatching_automation_triggers','watch_triggered','Dispatching Proactive Agents','Watch Change Waiting for Agents'] as $needle){if(strpos($brain,$needle)===false){fwrite(STDERR,"Brain Activity proactive automation state missing {$needle}\n");exit(1);}}
 
 $js=$read('assets/brain-activity.js');
-foreach(['Starting proactive agents','Watch change queued','pending_automation_triggers','dispatching_automation_triggers','A watch change is waking the relevant specialist agents and Overview','activeJobs>0?5000:60000'] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Agent EEG proactive automation UI missing {$needle}\n");exit(1);}}
+foreach(['Starting proactive agents','Watch change queued','pending_automation_triggers','dispatching_automation_triggers','A watch change is waking the relevant specialist agents and Overview','fastPoll=agentJobs>0||dispatching>0','fastPoll?5000:60000'] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Agent EEG proactive automation UI missing {$needle}\n");exit(1);}}
+if(strpos($js,'activeJobs>0?5000:60000')!==false){fwrite(STDERR,"Deferred proactive triggers must not force 5-second polling for hours.\n");exit(1);}
 if(strpos($js,'Math.random')!==false){fwrite(STDERR,"Agent EEG automation must reflect real states, not random animation.\n");exit(1);}
 
 $bootstrap=$read('app/bootstrap.php');if(strpos($bootstrap,"/Services/TripAgentAutomationService.php")===false){fwrite(STDERR,"TripAgentAutomationService is not loaded by bootstrap.\n");exit(1);}
