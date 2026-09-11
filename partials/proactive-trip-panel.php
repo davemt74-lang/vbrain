@@ -1,6 +1,6 @@
 <?php
 if(!isset($userId))return;$vbProactiveTripId=(int)($_GET['id']??($tripId??0));if($vbProactiveTripId<1)return;
-try{$vbProactiveService=new ProactiveTravelService(db());if(!$vbProactiveService->ready())return;$vbProactive=$vbProactiveService->assessTrip((int)$userId,$vbProactiveTripId,true,'view');$vbProactiveIssues=array_slice((array)($vbProactive['issues']??[]),0,3);}catch(Throwable $e){error_log('Proactive trip panel failed: '.$e->getMessage());return;}
+try{$vbProactiveService=new ProactiveTravelService(db());if(!$vbProactiveService->ready())return;$vbProactive=$vbProactiveService->assessTrip((int)$userId,$vbProactiveTripId,true,'worker');$vbProactiveIssues=array_slice((array)($vbProactive['issues']??[]),0,3);}catch(Throwable $e){error_log('Proactive trip panel failed: '.$e->getMessage());return;}
 ?>
 <section class="dashboard vb-proactive-panel"><div class="shell"><div class="dashboard-card">
   <div class="vb-proactive-panel-head"><div><span class="eyebrow">Proactive Vacation Brain</span><h2>What needs attention before you ask?</h2><p class="muted">Saved live data, readiness, itinerary timing and traveler signals are continuously reconciled into approval-safe Next Moves.</p></div><div class="vb-proactive-panel-stat"><strong><?=(int)($vbProactive['risk_score']??0)?></strong><span><?=e((string)($vbProactive['risk_label']??'Under control'))?></span></div></div>
