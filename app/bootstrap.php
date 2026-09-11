@@ -71,6 +71,7 @@ require_once __DIR__ . '/Services/WeatherEnvyService.php';
 require_once __DIR__ . '/Services/RoastService.php';
 require_once __DIR__ . '/Services/VacationAgentService.php';
 require_once __DIR__ . '/Services/NotificationService.php';
+require_once __DIR__ . '/Services/TravelWatchService.php';
 require_once __DIR__ . '/Services/TravelMatchService.php';
 require_once __DIR__ . '/Services/TravelMessageService.php';
 require_once __DIR__ . '/Services/MatchEngagementService.php';
