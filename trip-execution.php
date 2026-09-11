@@ -19,7 +19,7 @@ try{
                     $bookingActionService=new TripBookingActionService($pdo);
                     if($bookingActionService->ready())$bookingActionService->ensureHandoffIntent($userId,$tripId,(int)$booking['id'],$actionId,(int)($completed['id']??0)?:null);
                 }
-                flash('success','Approved. Vacation Brain saved this as Ready to Book. The provider transaction still requires its own locked quote and explicit approval before checkout opens.');
+                flash('success','Approved. Vacation Brain saved this as Ready to Book. Confirm live availability, final price, terms, and payment with the provider. The provider transaction still requires its own locked quote and explicit approval before checkout opens.');
             }else flash('success','Approved. Run System Upgrade to add this booking handoff to Trip Readiness.');
         }else flash('success','Approved. Vacation Brain applied the proposed trip change and completed the Next Move.');
     }
