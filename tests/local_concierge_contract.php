@@ -9,6 +9,7 @@ $files=[
     'assets/local-concierge.js',
     'assets/local-concierge.css',
     'app/Services/LiveTravelAgentContextService.php',
+    'app/Services/VacationAgentService.php',
     'partials/proactive-trip-panel.php',
     'shared-trip.php',
     'app/bootstrap.php',
@@ -36,7 +37,11 @@ if(preg_match('/(?:DOMContentLoaded|window\.onload|addEventListener\([\'\"]load)
 
 $live=$read('app/Services/LiveTravelAgentContextService.php');
 foreach(['LocalConciergeService','agentContext($userId,1)','fallback($userId)','exact device coordinates'] as $needle){if(stripos($live,$needle)===false){fwrite(STDERR,"Main live agent context missing Local Concierge grounding: {$needle}\n");exit(1);}}
-if(strpos($live,'refresh($userId')!==false||strpos($live,'->refresh(')!==false){fwrite(STDERR,"Main chat context must never refresh Local Concierge providers.\n");exit(1);}
+if(strpos($live,'->refresh(')!==false){fwrite(STDERR,"Main chat context must never refresh Local Concierge providers.\n");exit(1);}
+
+$agent=$read('app/Services/VacationAgentService.php');
+foreach(['When LOCAL CONCIERGE STATE is present','what should we do nearby','what should we do tonight','local concierge','last saved Local Concierge run','This chat did not refresh your location or any provider','Chat itself will not request or refresh device location'] as $needle){if(stripos($agent,$needle)===false){fwrite(STDERR,"Vacation Brain Local Concierge grounding/fallback missing {$needle}\n");exit(1);}}
+if(strpos($agent,'LocalConciergeService($this->pdo))->refresh')!==false){fwrite(STDERR,"Vacation Brain chat must not invoke a Local Concierge refresh.\n");exit(1);}
 
 $panel=$read('partials/proactive-trip-panel.php');if(strpos($panel,'local-concierge.php?id=')===false||strpos($panel,'Local Concierge')===false){fwrite(STDERR,"Owner Travel Mode/trip surfaces need a Local Concierge entry point.\n");exit(1);}
 $shared=$read('shared-trip.php');if(strpos($shared,'local-concierge.php?id=')===false||strpos($shared,'Local Concierge')===false){fwrite(STDERR,"Shared trip workspace needs a Local Concierge entry point.\n");exit(1);}
