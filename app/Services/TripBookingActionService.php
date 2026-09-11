@@ -134,7 +134,7 @@ final class TripBookingActionService
     {
         $this->requireReady();
         $booking=$this->booking($userId,$tripId,$bookingId);
-        if((string)$booking['booking_type']!=='lodging')throw new DomainException('Direct Booking.com cancellation is available only for lodging bookings in v1.40.');
+        $this->assertBookingComBooking($booking);
         if((string)$booking['status']==='cancelled')throw new DomainException('This lodging booking is already marked cancelled.');
 
         $order=trim((string)($input['order_reference']??''));
@@ -162,6 +162,7 @@ final class TripBookingActionService
         if(in_array((string)$raw['status'],['completed','executing','verification_pending'],true))return $this->intent($userId,$tripId,$intentId)??[];
 
         $details=$this->bookingComDetails($initialState,$userId,$tripId);
+        $this->assertBookingComDetailsMatch($details,$booking);
         $state=$this->enrichBookingComState($initialState,$details);
         if(trim((string)($state['reservation']??''))==='')throw new DomainException('Booking.com did not return the accommodation reservation reference required for a safe cancellation request. No cancellation was attempted.');
         $stateHash=hash('sha256',strtolower((string)($state['order']??'')).'|'.strtolower((string)$state['reservation']));
@@ -299,6 +300,8 @@ final class TripBookingActionService
         $details=$this->bookingComDetails($state,$userId,$tripId);
         $state=$this->enrichBookingComState($state,$details);
         $booking=$this->booking($userId,$tripId,(int)$raw['booking_id']);
+        $this->assertBookingComBooking($booking);
+        $this->assertBookingComDetailsMatch($details,$booking);
         $fresh=$this->normalizeCancellationQuote($details,$booking);
         if(!$fresh['cancellable']){
             $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='failed',failure_code='not_cancellable',error_message=?,failed_at=NOW(),updated_at=NOW() WHERE id=?")->execute([$this->clip($fresh['message'],1000),$intentId]);
@@ -377,7 +380,6 @@ final class TripBookingActionService
         if(trim((string)($state['reservation']??''))===''){
             foreach([
                 $details['reservation']??null,
-                $details['id']??null,
                 $details['accommodation']['reservation']??null,
             ] as $candidate){
                 $candidate=trim((string)$candidate);
@@ -385,12 +387,34 @@ final class TripBookingActionService
             }
         }
         if(trim((string)($state['order']??''))===''){
-            foreach([$details['order']??null,$details['order_id']??null] as $candidate){
+            foreach([$details['id']??null,$details['order']??null,$details['order_id']??null] as $candidate){
                 $candidate=trim((string)$candidate);
                 if($candidate!==''){$state['order']=$this->clip($candidate,180);break;}
             }
         }
         return $state;
+    }
+
+    private function assertBookingComBooking(array $booking): void
+    {
+        if((string)($booking['booking_type']??'')!=='lodging')throw new DomainException('Direct Booking.com cancellation is available only for lodging bookings in v1.40.');
+        $provider=$this->providerSlug((string)($booking['provider_name']??''),(string)($booking['provider_url']??''),(string)($booking['booking_type']??''));
+        if($provider!=='booking_com')throw new DomainException('Direct cancellation is available only for a trip booking identified as Booking.com. No provider action was attempted.');
+    }
+
+    private function assertBookingComDetailsMatch(array $details,array $booking): void
+    {
+        $checks=[
+            ['starts_at','checkin'],
+            ['ends_at','checkout'],
+        ];
+        foreach($checks as [$bookingField,$providerField]){
+            $local=$this->dateOnly((string)($booking[$bookingField]??''));
+            $remote=$this->dateOnly((string)($details[$providerField]??''));
+            if($local!==''&&$remote!==''&&!hash_equals($local,$remote)){
+                throw new DomainException('Booking.com reservation dates do not match this trip booking. No cancellation was attempted.');
+            }
+        }
     }
 
     private function normalizeCancellationQuote(array $details,array $booking): array
@@ -624,6 +648,12 @@ final class TripBookingActionService
         return $url!==''&&preg_match('#^https://#i',$url)?$this->clip($url,1500):null;
     }
 
+    private function dateOnly(string $value): string
+    {
+        $value=trim($value);if($value==='')return '';
+        $ts=strtotime($value);return $ts?date('Y-m-d',$ts):'';
+    }
+
     private function displayDate(string $value): string
     {
         $ts=strtotime($value);
@@ -639,6 +669,13 @@ final class TripBookingActionService
     private function bookingComError(string $body): string
     {
         $json=json_decode($body,true);if(!is_array($json))return '';
+        if(is_array($json['errors']??null)){
+            foreach($json['errors'] as $error){
+                if(!is_array($error))continue;
+                $message=trim((string)($error['message']??''));
+                if($message!=='')return $this->clip($message,500);
+            }
+        }
         foreach([['error','message'],['detail','message'],['status','message']] as $p){
             $v=$json[$p[0]][$p[1]]??null;
             if(is_string($v)&&trim($v)!=='')return $this->clip($v,500);
