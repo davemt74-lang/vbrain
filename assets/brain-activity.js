@@ -6,7 +6,7 @@ var api=String(config.api||'');var jobApi=String(config.job_api||'');var csrf=St
 var page=document.body.getAttribute('data-page')||'';var isDashboard=page==='today.php';var tripRoot=document.querySelector('[data-trip-intelligence]');var isTrip=!!tripRoot;if(!isDashboard&&!isTrip)return;
 var tripId=0;if(isTrip){var params=new URLSearchParams(window.location.search);tripId=parseInt(params.get('id')||'0',10)||0;}
 var mounted=null;var busy=false;var timer=null;var activeJobs=0;var fastPoll=false;
-function esc(value){return String(value===null||value===undefined?'':value).replace(/[&<>'\"]/g,function(ch){return{'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','\"':'&quot;'}[ch];});}
+function esc(value){return String(value===null||value===undefined?'':value).replace(/[&<>'"]/g,function(ch){return{'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[ch];});}
 function clamp(value){value=parseInt(value||'0',10)||0;return Math.max(0,Math.min(100,value));}
 function points(series,w,h){var values=Array.isArray(series)&&series.length?series:[0,0];var step=w/Math.max(1,values.length-1);return values.map(function(v,i){var value=clamp(v);var base=h*.72;var amplitude=(value/100)*(h*.6);var phase=(i%2===0?-1:1);var y=Math.max(3,Math.min(h-3,base+(phase*amplitude)));return[(i*step).toFixed(1),y.toFixed(1)];});}
 function polyline(series,w,h){return points(series,w,h).map(function(p){return p.join(',');}).join(' ');}
