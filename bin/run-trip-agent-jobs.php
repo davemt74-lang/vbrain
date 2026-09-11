@@ -12,7 +12,8 @@ try{
     if(!$service->ready())throw new RuntimeException('Run System Upgrade before starting the trip agent worker.');
     $automation=new TripAgentAutomationService($pdo);$automationResult=$automation->ready()?$automation->runDue(min(5,$limit)):['ready'=>false,'captured'=>0,'groups'=>0,'dispatched'=>0,'deferred'=>0,'failed'=>0];
     $result=$service->runDue($limit);
-    echo json_encode(['ok'=>true,'automation'=>$automationResult]+$result,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE).PHP_EOL;
+    $actions=new TripAgentActionService($pdo);$actionResult=$actions->ready()?$actions->syncCompletedOverviewBatches(max(5,$limit)):['ready'=>false,'checked'=>0,'synced'=>0,'failed'=>0,'batches'=>[]];
+    echo json_encode(['ok'=>true,'automation'=>$automationResult,'actions'=>$actionResult]+$result,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE).PHP_EOL;
     exit((($result['failed']??0)>0||($automationResult['failed']??0)>0)?2:0);
 }catch(Throwable $e){
     fwrite(STDERR,'Trip agent worker failed: '.$e->getMessage().PHP_EOL);exit(1);
