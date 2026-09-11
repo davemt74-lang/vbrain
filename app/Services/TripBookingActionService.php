@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Controlled provider action layer for Vacation Brain.
  *
- * The service deliberately separates planning approval from transaction approval:
+ * Planning approval and transaction approval are deliberately separate:
  *  1. prepare a provider quote / handoff,
  *  2. lock and display the exact terms,
  *  3. require explicit user approval,
@@ -14,12 +14,10 @@ declare(strict_types=1);
  * Payment-card data is never accepted or stored here. New bookings therefore use
  * provider-hosted checkout. The only direct provider mutation in v1.40 is an
  * explicitly-approved Booking.com accommodation cancellation after live policy
- * and fee revalidation.
+ * and fee revalidation. Do not blindly retry an uncertain destructive request.
  */
 final class TripBookingActionService
 {
-    private const ACTIVE_STATUSES=['draft','prepared','awaiting_approval','approved','executing','handoff_pending','verification_pending'];
-
     private array $config;
 
     public function __construct(private PDO $pdo)
@@ -44,11 +42,12 @@ final class TripBookingActionService
             FROM trip_booking_action_intents i
             LEFT JOIN trip_booking_action_quotes q ON q.id=i.current_quote_id
             WHERE i.user_id=? AND i.dream_trip_id=?
-            ORDER BY FIELD(i.status,'awaiting_approval','approved','executing','handoff_pending','verification_pending','failed','prepared','draft','completed','cancelled'),i.updated_at DESC,i.id DESC
+            ORDER BY FIELD(i.status,'verification_pending','awaiting_approval','approved','executing','handoff_pending','failed','prepared','draft','completed','cancelled'),i.updated_at DESC,i.id DESC
             LIMIT $limit");
         $stmt->execute([$userId,$tripId]);
         $rows=$stmt->fetchAll()?:[];
-        foreach($rows as &$row)$row=$this->publicIntent($row);unset($row);
+        foreach($rows as &$row)$row=$this->publicIntent($row);
+        unset($row);
         return $rows;
     }
 
@@ -87,7 +86,9 @@ final class TripBookingActionService
             VALUES (?,?,?,?,?,?,?,'provider_handoff','draft',?,?)
             ON DUPLICATE KEY UPDATE booking_id=VALUES(booking_id),action_id=COALESCE(action_id,VALUES(action_id)),action_execution_id=COALESCE(action_execution_id,VALUES(action_execution_id)),provider_url=COALESCE(VALUES(provider_url),provider_url),updated_at=NOW()")
             ->execute([$userId,$tripId,$bookingId,$actionId,$executionId,$actionType,$provider,$key,$this->safeUrl((string)($booking['provider_url']??''))]);
-        $stmt=$this->pdo->prepare('SELECT id FROM trip_booking_action_intents WHERE idempotency_key=? LIMIT 1');$stmt->execute([$key]);$intentId=(int)$stmt->fetchColumn();
+        $stmt=$this->pdo->prepare('SELECT id FROM trip_booking_action_intents WHERE idempotency_key=? LIMIT 1');
+        $stmt->execute([$key]);
+        $intentId=(int)$stmt->fetchColumn();
         if($intentId<1)throw new RuntimeException('Could not prepare the booking action.');
         return $this->intent($userId,$tripId,$intentId)??[];
     }
@@ -118,7 +119,7 @@ final class TripBookingActionService
             'requires_provider_confirmation'=>true,
         ];
         $quoteId=$this->storeQuote($raw,'handoff',$amount,$currency,null,implode(' ',$terms),'provider_handoff',$quote,(new DateTimeImmutable())->modify('+30 minutes'));
-        $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='awaiting_approval',current_quote_id=?,provider_url=?,error_message=NULL,failure_code=NULL,updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?")
+        $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='awaiting_approval',current_quote_id=?,provider_url=?,approved_at=NULL,error_message=NULL,failure_code=NULL,updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?")
             ->execute([$quoteId,$url,$intentId,$userId,$tripId]);
         $this->receipt($raw,'prepared',['mode'=>'provider_handoff','quote_id'=>$quoteId,'checkout_available'=>$url!==null]);
         return $this->intent($userId,$tripId,$intentId)??[];
@@ -135,30 +136,45 @@ final class TripBookingActionService
         $booking=$this->booking($userId,$tripId,$bookingId);
         if((string)$booking['booking_type']!=='lodging')throw new DomainException('Direct Booking.com cancellation is available only for lodging bookings in v1.40.');
         if((string)$booking['status']==='cancelled')throw new DomainException('This lodging booking is already marked cancelled.');
+
         $order=trim((string)($input['order_reference']??''));
         $reservation=trim((string)($input['reservation_reference']??''));
         if($order===''&&$reservation==='')throw new InvalidArgumentException('Booking.com order or reservation reference is required to verify cancellation terms.');
         if(strlen($order)>180||strlen($reservation)>180)throw new InvalidArgumentException('Provider reference is too long.');
         $reason=$this->clip((string)($input['reason']??'Change in travel plans'),240);
         if($reason==='')$reason='Change in travel plans';
-        $state=['order'=>$order,'reservation'=>$reservation,'reason'=>$reason];
-        $stateHash=hash('sha256',strtolower($order).'|'.strtolower($reservation));
-        $key=hash('sha256','booking-com-cancel|'.$userId.'|'.$tripId.'|'.$bookingId.'|'.$stateHash);
-        $encrypted=$this->encrypt(json_encode($state,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
+
+        // One cancellation intent per owned booking. Provider references can be
+        // refreshed without creating a second destructive-action identity.
+        $key=hash('sha256','booking-com-cancel|'.$userId.'|'.$tripId.'|'.$bookingId);
+        $initialState=['order'=>$order,'reservation'=>$reservation,'reason'=>$reason];
+        $initialHash=hash('sha256',strtolower($order).'|'.strtolower($reservation));
+        $initialEncrypted=$this->encrypt(json_encode($initialState,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
         $this->pdo->prepare("INSERT INTO trip_booking_action_intents
             (user_id,dream_trip_id,booking_id,action_type,provider_slug,adapter_mode,status,idempotency_key,provider_state_encrypted,provider_state_hash)
             VALUES (?,?,?,'cancel','booking_com','booking_com_cancel','draft',?,?,?)
-            ON DUPLICATE KEY UPDATE provider_state_encrypted=VALUES(provider_state_encrypted),provider_state_hash=VALUES(provider_state_hash),status=IF(status IN ('completed','executing','verification_pending'),status,'draft'),error_message=NULL,failure_code=NULL,updated_at=NOW()")
-            ->execute([$userId,$tripId,$bookingId,$key,$encrypted,$stateHash]);
-        $stmt=$this->pdo->prepare('SELECT id FROM trip_booking_action_intents WHERE idempotency_key=? LIMIT 1');$stmt->execute([$key]);$intentId=(int)$stmt->fetchColumn();
+            ON DUPLICATE KEY UPDATE provider_state_encrypted=IF(status IN ('completed','executing','verification_pending'),provider_state_encrypted,VALUES(provider_state_encrypted)),provider_state_hash=IF(status IN ('completed','executing','verification_pending'),provider_state_hash,VALUES(provider_state_hash)),status=IF(status IN ('completed','executing','verification_pending'),status,'draft'),approved_at=IF(status IN ('completed','executing','verification_pending'),approved_at,NULL),error_message=NULL,failure_code=NULL,updated_at=NOW()")
+            ->execute([$userId,$tripId,$bookingId,$key,$initialEncrypted,$initialHash]);
+        $stmt=$this->pdo->prepare('SELECT id FROM trip_booking_action_intents WHERE idempotency_key=? LIMIT 1');
+        $stmt->execute([$key]);
+        $intentId=(int)$stmt->fetchColumn();
         $raw=$this->rawIntent($userId,$tripId,$intentId,true);
         if(in_array((string)$raw['status'],['completed','executing','verification_pending'],true))return $this->intent($userId,$tripId,$intentId)??[];
-        $details=$this->bookingComDetails($state,$userId,$tripId);
+
+        $details=$this->bookingComDetails($initialState,$userId,$tripId);
+        $state=$this->enrichBookingComState($initialState,$details);
+        if(trim((string)($state['reservation']??''))==='')throw new DomainException('Booking.com did not return the accommodation reservation reference required for a safe cancellation request. No cancellation was attempted.');
+        $stateHash=hash('sha256',strtolower((string)($state['order']??'')).'|'.strtolower((string)$state['reservation']));
+        $encrypted=$this->encrypt(json_encode($state,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR));
+        $this->pdo->prepare('UPDATE trip_booking_action_intents SET provider_state_encrypted=?,provider_state_hash=?,updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?')
+            ->execute([$encrypted,$stateHash,$intentId,$userId,$tripId]);
+        $raw=$this->rawIntent($userId,$tripId,$intentId,true);
+
         $normalized=$this->normalizeCancellationQuote($details,$booking);
         if(!$normalized['cancellable'])throw new DomainException($normalized['message']);
         $expires=(new DateTimeImmutable())->modify('+15 minutes');
         $quoteId=$this->storeQuote($raw,'cancellation',$normalized['amount'],$normalized['currency'],$normalized['fee'],$normalized['terms'],'live',$normalized['public'],$expires);
-        $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='awaiting_approval',current_quote_id=?,error_message=NULL,failure_code=NULL,updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?")
+        $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='awaiting_approval',current_quote_id=?,approved_at=NULL,error_message=NULL,failure_code=NULL,updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?")
             ->execute([$quoteId,$intentId,$userId,$tripId]);
         $this->receipt($raw,'prepared',['mode'=>'booking_com_cancel','quote_id'=>$quoteId,'fee'=>$normalized['fee'],'currency'=>$normalized['currency'],'status'=>$normalized['public']['provider_status']]);
         return $this->intent($userId,$tripId,$intentId)??[];
@@ -180,7 +196,10 @@ final class TripBookingActionService
             if($stmt->rowCount()!==1)throw new DomainException('The provider action changed before approval could be recorded.');
             $this->receipt($raw,'approved',['quote_id'=>(int)$quote['id'],'quote_digest'=>(string)$quote['quote_digest'],'action_type'=>(string)$raw['action_type']]);
             $this->pdo->commit();
-        }catch(Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
+        }catch(Throwable $e){
+            if($this->pdo->inTransaction())$this->pdo->rollBack();
+            throw $e;
+        }
         return $this->intent($userId,$tripId,$intentId)??[];
     }
 
@@ -224,15 +243,16 @@ final class TripBookingActionService
             $this->receipt($raw,'provider_failure',['mode'=>'provider_handoff','reason'=>'user_reported_not_completed']);
             return $this->intent($userId,$tripId,$intentId)??[];
         }
+
         $bookingId=(int)($raw['booking_id']??0);
         if($bookingId>0&&(new TripBookingService($this->pdo))->ready()){
-            // A user-confirmed external checkout becomes "booked", not "confirmed";
-            // confirmed is reserved for later provider/manual verification.
+            // User-confirmed external checkout becomes Booked, not provider-verified Confirmed.
             (new TripBookingService($this->pdo))->updateBookingStatus($userId,$tripId,$bookingId,'booked');
         }
         $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='completed',executed_at=NOW(),verified_at=NOW(),completed_at=NOW(),error_message=NULL,failure_code=NULL,updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?")->execute([$intentId,$userId,$tripId]);
         $this->receipt($raw,'handoff_confirmed',['mode'=>'provider_handoff','result'=>'user_confirmed_completed']);
         $this->receipt($raw,'completed',['verification_source'=>'user','booking_status'=>'booked']);
+        $this->syncAfterAction($userId,$tripId);
         return $this->intent($userId,$tripId,$intentId)??[];
     }
 
@@ -250,14 +270,22 @@ final class TripBookingActionService
         $this->rawIntent($userId,$tripId,$intentId,true);
         $limit=max(1,min(100,$limit));
         $stmt=$this->pdo->prepare("SELECT event_type,provider_slug,provider_request_id,receipt_json,receipt_hash,created_at FROM trip_booking_action_receipts WHERE intent_id=? AND user_id=? AND dream_trip_id=? ORDER BY id DESC LIMIT $limit");
-        $stmt->execute([$intentId,$userId,$tripId]);$rows=array_reverse($stmt->fetchAll()?:[]);
-        foreach($rows as &$row){$row['receipt']=json_decode((string)($row['receipt_json']??''),true)?:[];unset($row['receipt_json']);}unset($row);
+        $stmt->execute([$intentId,$userId,$tripId]);
+        $rows=array_reverse($stmt->fetchAll()?:[]);
+        foreach($rows as &$row){
+            $row['receipt']=json_decode((string)($row['receipt_json']??''),true)?:[];
+            unset($row['receipt_json']);
+        }
+        unset($row);
         return $rows;
     }
 
     private function executeBookingComCancellation(array $raw): array
     {
-        $userId=(int)$raw['user_id'];$tripId=(int)$raw['dream_trip_id'];$intentId=(int)$raw['id'];$quote=$this->currentQuoteRaw($raw);
+        $userId=(int)$raw['user_id'];
+        $tripId=(int)$raw['dream_trip_id'];
+        $intentId=(int)$raw['id'];
+        $quote=$this->currentQuoteRaw($raw);
         if(!$quote)throw new RuntimeException('Cancellation quote is unavailable.');
         if(!empty($quote['expires_at'])&&strtotime((string)$quote['expires_at'])<=time()){
             $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='awaiting_approval',approved_at=NULL,error_message='Quote expired before execution.',failure_code='quote_expired',updated_at=NOW() WHERE id=?")->execute([$intentId]);
@@ -265,9 +293,11 @@ final class TripBookingActionService
         }
         $state=$this->providerState($raw);
         if(!$state)throw new RuntimeException('Encrypted provider state is unavailable.');
+        if(trim((string)($state['reservation']??''))==='')throw new RuntimeException('Encrypted Booking.com reservation state is incomplete. No cancellation was attempted.');
 
         // Re-read current Booking.com details immediately before the irreversible call.
         $details=$this->bookingComDetails($state,$userId,$tripId);
+        $state=$this->enrichBookingComState($state,$details);
         $booking=$this->booking($userId,$tripId,(int)$raw['booking_id']);
         $fresh=$this->normalizeCancellationQuote($details,$booking);
         if(!$fresh['cancellable']){
@@ -275,7 +305,7 @@ final class TripBookingActionService
             $this->receipt($raw,'provider_failure',['stage'=>'preflight','reason'=>'not_cancellable']);
             throw new DomainException($fresh['message']);
         }
-        $approvedPublic=json_decode((string)($quote['quote_json']??''),true)?:[];
+
         $freshDigest=$this->quoteDigest('cancellation',$fresh['amount'],$fresh['currency'],$fresh['fee'],$fresh['terms'],$fresh['public']);
         if(!hash_equals((string)$quote['quote_digest'],$freshDigest)){
             $newQuoteId=$this->storeQuote($raw,'cancellation',$fresh['amount'],$fresh['currency'],$fresh['fee'],$fresh['terms'],'live',$fresh['public'],(new DateTimeImmutable())->modify('+15 minutes'));
@@ -289,29 +319,39 @@ final class TripBookingActionService
         if($lock->rowCount()!==1)throw new DomainException('This cancellation is already being executed or changed.');
         $this->receipt($raw,'provider_request',['stage'=>'cancel','quote_digest'=>(string)$quote['quote_digest']]);
 
-        $payload=['accommodation'=>['reason'=>$this->clip((string)($state['reason']??'Change in travel plans'),240)]];
+        $payload=['accommodation'=>[
+            'reservation'=>(string)$state['reservation'],
+            'reason'=>$this->clip((string)($state['reason']??'Change in travel plans'),240),
+        ]];
         if(!empty($state['order']))$payload['order']=(string)$state['order'];
-        if(!empty($state['reservation']))$payload['accommodation']['reservation']=(string)$state['reservation'];
+
         try{
             [$status,$body,$requestId]=$this->bookingComRequest('/orders/cancel',$payload,$userId,$tripId);
             $json=json_decode($body,true);if(!is_array($json))$json=[];
             $providerStatus=strtolower((string)($json['data']['status']??''));
             if($status>=200&&$status<300&&in_array($providerStatus,['successful','success','cancelled'],true)){
-                if((new TripBookingService($this->pdo))->ready())(new TripBookingService($this->pdo))->updateBookingStatus($userId,$tripId,(int)$raw['booking_id'],'cancelled');
-                $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='completed',provider_reference=?,executed_at=NOW(),verified_at=NOW(),completed_at=NOW(),error_message=NULL,failure_code=NULL,updated_at=NOW() WHERE id=?")->execute([$requestId?:null,$intentId]);
-                $this->receipt($raw,'provider_success',['stage'=>'cancel','provider_status'=>$providerStatus?:'successful'], $requestId?:null);
+                if((new TripBookingService($this->pdo))->ready()){
+                    (new TripBookingService($this->pdo))->updateBookingStatus($userId,$tripId,(int)$raw['booking_id'],'cancelled');
+                }
+                $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='completed',provider_reference=?,executed_at=NOW(),verified_at=NOW(),completed_at=NOW(),error_message=NULL,failure_code=NULL,updated_at=NOW() WHERE id=?")
+                    ->execute([$requestId?:null,$intentId]);
+                $this->receipt($raw,'provider_success',['stage'=>'cancel','provider_status'=>$providerStatus?:'successful'],$requestId?:null);
                 $this->receipt($raw,'completed',['verification_source'=>'provider_response','booking_status'=>'cancelled'],$requestId?:null);
+                $this->syncAfterAction($userId,$tripId);
                 return $this->intent($userId,$tripId,$intentId)??[];
             }
+
             $message=$this->bookingComError($body)?:('Booking.com returned HTTP '.$status.'.');
-            $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='failed',failure_code='provider_rejected',error_message=?,failed_at=NOW(),updated_at=NOW() WHERE id=?")->execute([$this->clip($message,1000),$intentId]);
+            $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='failed',failure_code='provider_rejected',error_message=?,failed_at=NOW(),updated_at=NOW() WHERE id=?")
+                ->execute([$this->clip($message,1000),$intentId]);
             $this->receipt($raw,'provider_failure',['stage'=>'cancel','http_status'=>$status,'reason'=>$this->clip($message,300)],$requestId?:null);
             throw new RuntimeException($message);
         }catch(Throwable $e){
             $current=$this->rawIntent($userId,$tripId,$intentId,true);
             if((string)$current['status']==='executing'){
                 // Network/transport ambiguity must never be blindly retried for a destructive action.
-                $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='verification_pending',failure_code='execution_uncertain',error_message=?,updated_at=NOW() WHERE id=?")->execute([$this->clip($e->getMessage(),1000),$intentId]);
+                $this->pdo->prepare("UPDATE trip_booking_action_intents SET status='verification_pending',failure_code='execution_uncertain',error_message=?,updated_at=NOW() WHERE id=?")
+                    ->execute([$this->clip($e->getMessage(),1000),$intentId]);
                 $this->receipt($raw,'provider_failure',['stage'=>'cancel','reason'=>'execution_uncertain']);
             }
             throw $e;
@@ -325,15 +365,38 @@ final class TripBookingActionService
         elseif(!empty($state['reservation']))$payload['reservations']=[(string)$state['reservation']];
         [$status,$body]=$this->bookingComRequest('/orders/details/accommodations',$payload,$userId,$tripId);
         if($status<200||$status>=300)throw new RuntimeException($this->bookingComError($body)?:('Booking.com details returned HTTP '.$status.'.'));
-        $json=json_decode($body,true);if(!is_array($json))throw new RuntimeException('Booking.com returned an unreadable cancellation-details response.');
-        $data=$json['data']??[];if(!is_array($data)||!isset($data[0])||!is_array($data[0]))throw new RuntimeException('Booking.com could not find the requested accommodation order.');
+        $json=json_decode($body,true);
+        if(!is_array($json))throw new RuntimeException('Booking.com returned an unreadable cancellation-details response.');
+        $data=$json['data']??[];
+        if(!is_array($data)||!isset($data[0])||!is_array($data[0]))throw new RuntimeException('Booking.com could not find the requested accommodation order.');
         return $data[0];
+    }
+
+    private function enrichBookingComState(array $state,array $details): array
+    {
+        if(trim((string)($state['reservation']??''))===''){
+            foreach([
+                $details['reservation']??null,
+                $details['id']??null,
+                $details['accommodation']['reservation']??null,
+            ] as $candidate){
+                $candidate=trim((string)$candidate);
+                if($candidate!==''){$state['reservation']=$this->clip($candidate,180);break;}
+            }
+        }
+        if(trim((string)($state['order']??''))===''){
+            foreach([$details['order']??null,$details['order_id']??null] as $candidate){
+                $candidate=trim((string)$candidate);
+                if($candidate!==''){$state['order']=$this->clip($candidate,180);break;}
+            }
+        }
+        return $state;
     }
 
     private function normalizeCancellationQuote(array $details,array $booking): array
     {
         $status=strtolower((string)($details['status']??''));
-        $cancel=$isCancelled=in_array($status,['cancelled','cancelled_by_guest'],true);
+        $isCancelled=in_array($status,['cancelled','cancelled_by_guest'],true);
         if($isCancelled)return ['cancellable'=>false,'message'=>'Booking.com reports that this accommodation reservation is already cancelled.'];
         if($status!==''&&$status!=='booked')return ['cancellable'=>false,'message'=>'Booking.com currently reports this reservation as '.str_replace('_',' ',$status).', so Vacation Brain will not submit a cancellation.'];
         $cancellation=is_array($details['cancellation_details']??null)?$details['cancellation_details']:[];
@@ -346,19 +409,43 @@ final class TripBookingActionService
         $terms.=$fee!==null?('Current cancellation fee: '.$currency.' '.number_format($fee,2).'. '):'No cancellation fee amount was returned; verify the provider policy shown here before approval. ';
         if($deadline!=='')$terms.='Cancellation policy timestamp: '.$this->displayDate($deadline).'. ';
         $terms.='Approval authorizes Vacation Brain to submit one cancellation request. If the network result is uncertain, Vacation Brain will stop for verification rather than retry blindly.';
-        $public=['provider_status'=>$status!==''?$status:'booked','fee'=>$fee,'currency'=>$currency,'cancellation_at'=>$deadline?:null,'booking_title'=>(string)$booking['title'],'booking_id'=>(int)$booking['id'],'direct_action'=>'cancel_accommodation'];
+        $public=[
+            'provider_status'=>$status!==''?$status:'booked',
+            'fee'=>$fee,
+            'currency'=>$currency,
+            'cancellation_at'=>$deadline?:null,
+            'booking_title'=>(string)$booking['title'],
+            'booking_id'=>(int)$booking['id'],
+            'direct_action'=>'cancel_accommodation',
+        ];
         return ['cancellable'=>true,'message'=>'','amount'=>$amount,'currency'=>$currency,'fee'=>$fee,'terms'=>$terms,'public'=>$public];
     }
 
     private function bookingComRequest(string $path,array $payload,int $userId,int $tripId): array
     {
-        $settings=new TravelProviderSettingsService($this->pdo);$token=$settings->effectiveKey('booking_com');$affiliate=$settings->setting('booking_com','affiliate_id');
+        $settings=new TravelProviderSettingsService($this->pdo);
+        $token=$settings->effectiveKey('booking_com');
+        $affiliate=$settings->setting('booking_com','affiliate_id');
         if($token===''||$affiliate==='')throw new RuntimeException('Booking.com direct actions require an enabled Demand API token and Affiliate ID in Admin → Travel Providers.');
-        $environment=$settings->setting('booking_com','environment','production');$base=$environment==='sandbox'?'https://demandapi-sandbox.booking.com/3.2':'https://demandapi.booking.com/3.2';
-        $url=$base.$path;$headers=['Authorization: Bearer '.$token,'X-Affiliate-Id: '.$affiliate,'Accept: application/json','Content-Type: application/json'];$json=json_encode($payload,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);$started=microtime(true);$status=0;$body='';$transport='';
-        if(function_exists('curl_init')){$ch=curl_init($url);curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$json,CURLOPT_RETURNTRANSFER=>true,CURLOPT_HTTPHEADER=>$headers,CURLOPT_TIMEOUT=>25,CURLOPT_CONNECTTIMEOUT=>7,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_USERAGENT=>'VacationBrain/1.40']);$out=curl_exec($ch);$transport=curl_error($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);curl_close($ch);$body=is_string($out)?$out:'';}
-        else{$ctx=stream_context_create(['http'=>['method'=>'POST','header'=>implode("\r\n",$headers)."\r\nUser-Agent: VacationBrain/1.40",'content'=>$json,'timeout'=>25,'ignore_errors'=>true]]);$out=@file_get_contents($url,false,$ctx);$body=is_string($out)?$out:'';$transport=$out===false?'HTTP request failed.':'';foreach(($http_response_header??[]) as $line)if(preg_match('/^HTTP\/\S+\s+(\d+)/',$line,$m)){$status=(int)$m[1];break;}}
-        $latency=(int)round((microtime(true)-$started)*1000);$ok=$status>=200&&$status<300;$error=$ok?null:($this->bookingComError($body)?:$transport?:'Provider request failed.');$settings->recordUsage('booking_com','booking_action',$userId,$tripId,$ok,$status,$latency,$error);
+        $environment=$settings->setting('booking_com','environment','production');
+        $base=$environment==='sandbox'?'https://demandapi-sandbox.booking.com/3.2':'https://demandapi.booking.com/3.2';
+        $url=$base.$path;
+        $headers=['Authorization: Bearer '.$token,'X-Affiliate-Id: '.$affiliate,'Accept: application/json','Content-Type: application/json'];
+        $json=json_encode($payload,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+        $started=microtime(true);$status=0;$body='';$transport='';
+        if(function_exists('curl_init')){
+            $ch=curl_init($url);
+            curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$json,CURLOPT_RETURNTRANSFER=>true,CURLOPT_HTTPHEADER=>$headers,CURLOPT_TIMEOUT=>25,CURLOPT_CONNECTTIMEOUT=>7,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_USERAGENT=>'VacationBrain/1.40']);
+            $out=curl_exec($ch);$transport=curl_error($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);curl_close($ch);$body=is_string($out)?$out:'';
+        }else{
+            $ctx=stream_context_create(['http'=>['method'=>'POST','header'=>implode("\r\n",$headers)."\r\nUser-Agent: VacationBrain/1.40",'content'=>$json,'timeout'=>25,'ignore_errors'=>true]]);
+            $out=@file_get_contents($url,false,$ctx);$body=is_string($out)?$out:'';$transport=$out===false?'HTTP request failed.':'';
+            foreach(($http_response_header??[]) as $line)if(preg_match('/^HTTP\/\S+\s+(\d+)/',$line,$m)){$status=(int)$m[1];break;}
+        }
+        $latency=(int)round((microtime(true)-$started)*1000);
+        $ok=$status>=200&&$status<300;
+        $error=$ok?null:($this->bookingComError($body)?:$transport?:'Provider request failed.');
+        $settings->recordUsage('booking_com','booking_action',$userId,$tripId,$ok,$status,$latency,$error);
         if($status===0&&$transport!=='')throw new RuntimeException('Booking.com request could not be confirmed: '.$this->clip($transport,300));
         $decoded=json_decode($body,true);$requestId=is_array($decoded)?trim((string)($decoded['request_id']??'')):'';
         return [$status,$body,$requestId];
@@ -367,8 +454,12 @@ final class TripBookingActionService
     private function storeQuote(array $intent,string $type,?float $amount,string $currency,?float $fee,string $terms,string $sourceState,array $public,DateTimeImmutable $expires): int
     {
         $digest=$this->quoteDigest($type,$amount,$currency,$fee,$terms,$public);
-        $find=$this->pdo->prepare('SELECT id FROM trip_booking_action_quotes WHERE intent_id=? AND quote_digest=? LIMIT 1');$find->execute([(int)$intent['id'],$digest]);$existing=(int)($find->fetchColumn()?:0);if($existing>0)return $existing;
-        $v=$this->pdo->prepare('SELECT COALESCE(MAX(quote_version),0)+1 FROM trip_booking_action_quotes WHERE intent_id=?');$v->execute([(int)$intent['id']]);$version=(int)$v->fetchColumn();
+        $find=$this->pdo->prepare('SELECT id FROM trip_booking_action_quotes WHERE intent_id=? AND quote_digest=? LIMIT 1');
+        $find->execute([(int)$intent['id'],$digest]);
+        $existing=(int)($find->fetchColumn()?:0);
+        if($existing>0)return $existing;
+        $v=$this->pdo->prepare('SELECT COALESCE(MAX(quote_version),0)+1 FROM trip_booking_action_quotes WHERE intent_id=?');
+        $v->execute([(int)$intent['id']]);$version=(int)$v->fetchColumn();
         $stmt=$this->pdo->prepare('INSERT INTO trip_booking_action_quotes (intent_id,quote_version,provider_slug,quote_type,amount,currency,fee_amount,terms_summary,source_state,quote_json,quote_digest,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
         $stmt->execute([(int)$intent['id'],$version,(string)$intent['provider_slug'],$type,$amount,$currency,$fee,$this->clip($terms,1500),$sourceState,json_encode($public,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE),$digest,$expires->format('Y-m-d H:i:s')]);
         return (int)$this->pdo->lastInsertId();
@@ -376,7 +467,8 @@ final class TripBookingActionService
 
     private function quoteDigest(string $type,?float $amount,string $currency,?float $fee,string $terms,array $public): string
     {
-        ksort($public);return hash('sha256',json_encode([$type,$amount,$currency,$fee,$terms,$public],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE));
+        ksort($public);
+        return hash('sha256',json_encode([$type,$amount,$currency,$fee,$terms,$public],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE));
     }
 
     private function receipt(array $intent,string $type,array $safe,?string $requestId=null): void
@@ -384,42 +476,110 @@ final class TripBookingActionService
         if(!$this->ready())return;
         // Never pass provider operational references into $safe. Only non-sensitive,
         // user-visible execution facts belong in immutable receipt JSON.
-        $json=json_encode($safe,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);if($json===false)$json='{}';
+        $json=json_encode($safe,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);
+        if($json===false)$json='{}';
         $hash=hash('sha256',(int)$intent['id'].'|'.$type.'|'.$json.'|'.microtime(true).'|'.bin2hex(random_bytes(6)));
         $stmt=$this->pdo->prepare('INSERT INTO trip_booking_action_receipts (intent_id,user_id,dream_trip_id,event_type,provider_slug,provider_request_id,receipt_json,receipt_hash) VALUES (?,?,?,?,?,?,?,?)');
         $stmt->execute([(int)$intent['id'],(int)$intent['user_id'],(int)$intent['dream_trip_id'],$type,(string)$intent['provider_slug'],$requestId!==null?$this->clip($requestId,180):null,$json,$hash]);
     }
 
+    /** Successful provider actions immediately refresh derived trip operations and proactive risk state. */
+    private function syncAfterAction(int $userId,int $tripId): void
+    {
+        try{
+            if(class_exists('TripTravelOperationsService')){
+                $operations=new TripTravelOperationsService($this->pdo);
+                if($operations->ready())$operations->snapshot($userId,$tripId,null,true);
+            }
+        }catch(Throwable $e){
+            error_log('Booking action Travel Mode synchronization failed: '.$this->clip($e->getMessage(),500));
+        }
+        try{
+            if(class_exists('ProactiveTravelService')){
+                $proactive=new ProactiveTravelService($this->pdo);
+                if($proactive->ready())$proactive->assessTrip($userId,$tripId,true,'booking_action');
+            }
+        }catch(Throwable $e){
+            error_log('Booking action proactive synchronization failed: '.$this->clip($e->getMessage(),500));
+        }
+    }
+
     private function rawIntent(int $userId,int $tripId,int $intentId,bool $required=false,bool $forUpdate=false): ?array
     {
-        if(!$this->ready()){if($required)$this->requireReady();return null;}$sql='SELECT * FROM trip_booking_action_intents WHERE id=? AND user_id=? AND dream_trip_id=? LIMIT 1'.($forUpdate?' FOR UPDATE':'');$stmt=$this->pdo->prepare($sql);$stmt->execute([$intentId,$userId,$tripId]);$row=$stmt->fetch()?:null;if(!$row&&$required)throw new OutOfBoundsException('Booking action not found.');return $row;
+        if(!$this->ready()){
+            if($required)$this->requireReady();
+            return null;
+        }
+        $sql='SELECT * FROM trip_booking_action_intents WHERE id=? AND user_id=? AND dream_trip_id=? LIMIT 1'.($forUpdate?' FOR UPDATE':'');
+        $stmt=$this->pdo->prepare($sql);$stmt->execute([$intentId,$userId,$tripId]);$row=$stmt->fetch()?:null;
+        if(!$row&&$required)throw new OutOfBoundsException('Booking action not found.');
+        return $row;
     }
 
     private function currentQuoteRaw(array $intent): ?array
     {
-        $id=(int)($intent['current_quote_id']??0);if($id<1)return null;$stmt=$this->pdo->prepare('SELECT * FROM trip_booking_action_quotes WHERE id=? AND intent_id=? LIMIT 1');$stmt->execute([$id,(int)$intent['id']]);return $stmt->fetch()?:null;
+        $id=(int)($intent['current_quote_id']??0);if($id<1)return null;
+        $stmt=$this->pdo->prepare('SELECT * FROM trip_booking_action_quotes WHERE id=? AND intent_id=? LIMIT 1');
+        $stmt->execute([$id,(int)$intent['id']]);
+        return $stmt->fetch()?:null;
     }
 
     private function providerState(array $intent): array
     {
-        $cipher=(string)($intent['provider_state_encrypted']??'');if($cipher==='')return [];$plain=$this->decrypt($cipher);if($plain==='')return [];$state=json_decode($plain,true);return is_array($state)?$state:[];
+        $cipher=(string)($intent['provider_state_encrypted']??'');if($cipher==='')return [];
+        $plain=$this->decrypt($cipher);if($plain==='')return [];
+        $state=json_decode($plain,true);
+        return is_array($state)?$state:[];
     }
 
     private function publicIntent(array $row): array
     {
-        $expires=(string)($row['quote_expires_at']??'');$expired=$expires!==''&&strtotime($expires)<=time();
+        $expires=(string)($row['quote_expires_at']??'');
+        $expired=$expires!==''&&strtotime($expires)<=time();
         return [
-            'id'=>(int)$row['id'],'trip_id'=>(int)$row['dream_trip_id'],'booking_id'=>(int)($row['booking_id']??0)?:null,'action_id'=>(int)($row['action_id']??0)?:null,'action_execution_id'=>(int)($row['action_execution_id']??0)?:null,
-            'action_type'=>(string)$row['action_type'],'provider_slug'=>(string)$row['provider_slug'],'adapter_mode'=>(string)$row['adapter_mode'],'status'=>(string)$row['status'],'provider_url'=>$this->safeUrl((string)($row['provider_url']??'')),'provider_reference'=>(string)($row['provider_reference']??''),'error'=>(string)($row['error_message']??''),'failure_code'=>(string)($row['failure_code']??''),
-            'quote'=>['amount'=>$row['quote_amount']!==null?(float)$row['quote_amount']:null,'currency'=>(string)($row['quote_currency']??''),'fee'=>$row['quote_fee']!==null?(float)$row['quote_fee']:null,'terms'=>(string)($row['terms_summary']??''),'source_state'=>(string)($row['quote_source_state']??''),'expires_at'=>$expires?:null,'expired'=>$expired,'digest'=>(string)($row['quote_digest']??'')],
-            'approved_at'=>$row['approved_at']??null,'execution_started_at'=>$row['execution_started_at']??null,'handoff_opened_at'=>$row['handoff_opened_at']??null,'executed_at'=>$row['executed_at']??null,'verified_at'=>$row['verified_at']??null,'completed_at'=>$row['completed_at']??null,'updated_at'=>(string)$row['updated_at'],
+            'id'=>(int)$row['id'],
+            'trip_id'=>(int)$row['dream_trip_id'],
+            'booking_id'=>(int)($row['booking_id']??0)?:null,
+            'action_id'=>(int)($row['action_id']??0)?:null,
+            'action_execution_id'=>(int)($row['action_execution_id']??0)?:null,
+            'action_type'=>(string)$row['action_type'],
+            'provider_slug'=>(string)$row['provider_slug'],
+            'adapter_mode'=>(string)$row['adapter_mode'],
+            'status'=>(string)$row['status'],
+            'provider_url'=>$this->safeUrl((string)($row['provider_url']??'')),
+            'provider_reference'=>(string)($row['provider_reference']??''),
+            'error'=>(string)($row['error_message']??''),
+            'failure_code'=>(string)($row['failure_code']??''),
+            'quote'=>[
+                'amount'=>$row['quote_amount']!==null?(float)$row['quote_amount']:null,
+                'currency'=>(string)($row['quote_currency']??''),
+                'fee'=>$row['quote_fee']!==null?(float)$row['quote_fee']:null,
+                'terms'=>(string)($row['terms_summary']??''),
+                'source_state'=>(string)($row['quote_source_state']??''),
+                'expires_at'=>$expires?:null,
+                'expired'=>$expired,
+                'digest'=>(string)($row['quote_digest']??''),
+            ],
+            'approved_at'=>$row['approved_at']??null,
+            'execution_started_at'=>$row['execution_started_at']??null,
+            'handoff_opened_at'=>$row['handoff_opened_at']??null,
+            'executed_at'=>$row['executed_at']??null,
+            'verified_at'=>$row['verified_at']??null,
+            'completed_at'=>$row['completed_at']??null,
+            'updated_at'=>(string)$row['updated_at'],
             'review_url'=>app_url('booking-action.php?id='.(int)$row['dream_trip_id'].'&intent='.(int)$row['id']),
         ];
     }
 
     private function booking(int $userId,int $tripId,int $bookingId): array
     {
-        if($bookingId<1)throw new InvalidArgumentException('Booking is required.');$this->assertTrip($userId,$tripId);$stmt=$this->pdo->prepare('SELECT * FROM trip_bookings WHERE id=? AND user_id=? AND dream_trip_id=? LIMIT 1');$stmt->execute([$bookingId,$userId,$tripId]);$row=$stmt->fetch();if(!$row)throw new OutOfBoundsException('Booking not found.');return $row;
+        if($bookingId<1)throw new InvalidArgumentException('Booking is required.');
+        $this->assertTrip($userId,$tripId);
+        $stmt=$this->pdo->prepare('SELECT * FROM trip_bookings WHERE id=? AND user_id=? AND dream_trip_id=? LIMIT 1');
+        $stmt->execute([$bookingId,$userId,$tripId]);
+        $row=$stmt->fetch();
+        if(!$row)throw new OutOfBoundsException('Booking not found.');
+        return $row;
     }
 
     private function assertTrip(int $userId,int $tripId): void
@@ -429,28 +589,91 @@ final class TripBookingActionService
 
     private function providerSlug(string $providerName,string $url,string $bookingType): string
     {
-        $hay=strtolower($providerName.' '.$url);if(str_contains($hay,'booking.com')||str_contains($hay,'booking_com'))return 'booking_com';if(str_contains($hay,'skyscanner')||str_contains($hay,'skyscnr'))return 'skyscanner';if(str_contains($hay,'ticketmaster'))return 'ticketmaster';return match($bookingType){'flight'=>'flight_provider','lodging'=>'lodging_provider','event','activity'=>'event_provider',default=>'external_provider'};
+        $hay=strtolower($providerName.' '.$url);
+        if(str_contains($hay,'booking.com')||str_contains($hay,'booking_com'))return 'booking_com';
+        if(str_contains($hay,'skyscanner')||str_contains($hay,'skyscnr'))return 'skyscanner';
+        if(str_contains($hay,'ticketmaster'))return 'ticketmaster';
+        return match($bookingType){
+            'flight'=>'flight_provider',
+            'lodging'=>'lodging_provider',
+            'event','activity'=>'event_provider',
+            default=>'external_provider',
+        };
     }
 
-    private function handoffActionType(string $bookingType): string{return match($bookingType){'event','activity'=>'purchase','restaurant'=>'reserve',default=>'book'};}
-    private function currency(string $value): string{$value=strtoupper(trim($value));return preg_match('/^[A-Z]{3}$/',$value)?$value:'USD';}
-    private function firstMoney(array $values): ?float{foreach($values as $value){if(is_numeric($value))return max(0,(float)$value);}return null;}
-    private function safeUrl(string $url): ?string{$url=trim($url);return $url!==''&&preg_match('#^https://#i',$url)?$this->clip($url,1500):null;}
-    private function displayDate(string $value): string{$ts=strtotime($value);return $ts?date('M j, Y · g:i A T',$ts):$this->clip($value,80);}
-    private function clip(string $value,int $max): string{$value=trim(preg_replace('/\s+/',' ',$value)??$value);return function_exists('mb_substr')?mb_substr($value,0,$max):substr($value,0,$max);}
-    private function bookingComError(string $body): string{$json=json_decode($body,true);if(!is_array($json))return '';foreach([['error','message'],['detail','message'],['status','message']] as $p){$v=$json[$p[0]][$p[1]]??null;if(is_string($v)&&trim($v)!=='')return $this->clip($v,500);}if(is_string($json['message']??null))return $this->clip((string)$json['message'],500);return '';}
+    private function handoffActionType(string $bookingType): string
+    {
+        return match($bookingType){'event','activity'=>'purchase','restaurant'=>'reserve',default=>'book'};
+    }
+
+    private function currency(string $value): string
+    {
+        $value=strtoupper(trim($value));
+        return preg_match('/^[A-Z]{3}$/',$value)?$value:'USD';
+    }
+
+    private function firstMoney(array $values): ?float
+    {
+        foreach($values as $value)if(is_numeric($value))return max(0,(float)$value);
+        return null;
+    }
+
+    private function safeUrl(string $url): ?string
+    {
+        $url=trim($url);
+        return $url!==''&&preg_match('#^https://#i',$url)?$this->clip($url,1500):null;
+    }
+
+    private function displayDate(string $value): string
+    {
+        $ts=strtotime($value);
+        return $ts?date('M j, Y · g:i A T',$ts):$this->clip($value,80);
+    }
+
+    private function clip(string $value,int $max): string
+    {
+        $value=trim(preg_replace('/\s+/',' ',$value)??$value);
+        return function_exists('mb_substr')?mb_substr($value,0,$max):substr($value,0,$max);
+    }
+
+    private function bookingComError(string $body): string
+    {
+        $json=json_decode($body,true);if(!is_array($json))return '';
+        foreach([['error','message'],['detail','message'],['status','message']] as $p){
+            $v=$json[$p[0]][$p[1]]??null;
+            if(is_string($v)&&trim($v)!=='')return $this->clip($v,500);
+        }
+        if(is_string($json['message']??null))return $this->clip((string)$json['message'],500);
+        return '';
+    }
 
     private function cryptoKey(): string
     {
-        $material=(string)($this->config['app']['internal_key']??'');if($material===''){$db=$this->config['db']??[];$material=implode('|',[(string)($db['host']??''),(string)($db['name']??''),(string)($db['user']??''),(string)($db['pass']??''),(string)($this->config['app']['base_url']??'')]);}return hash('sha256',$material,true);
+        $material=(string)($this->config['app']['internal_key']??'');
+        if($material===''){
+            $db=$this->config['db']??[];
+            $material=implode('|',[(string)($db['host']??''),(string)($db['name']??''),(string)($db['user']??''),(string)($db['pass']??''),(string)($this->config['app']['base_url']??'')]);
+        }
+        return hash('sha256',$material,true);
     }
+
     private function encrypt(string $plain): string
     {
-        if(!function_exists('openssl_encrypt'))throw new RuntimeException('PHP OpenSSL is required for secure provider action state.');$iv=random_bytes(12);$tag='';$cipher=openssl_encrypt($plain,'aes-256-gcm',$this->cryptoKey(),OPENSSL_RAW_DATA,$iv,$tag);if($cipher===false)throw new RuntimeException('Could not encrypt provider action state.');return 'v1.'.base64_encode($iv).'.'.base64_encode($tag).'.'.base64_encode($cipher);
+        if(!function_exists('openssl_encrypt'))throw new RuntimeException('PHP OpenSSL is required for secure provider action state.');
+        $iv=random_bytes(12);$tag='';
+        $cipher=openssl_encrypt($plain,'aes-256-gcm',$this->cryptoKey(),OPENSSL_RAW_DATA,$iv,$tag);
+        if($cipher===false)throw new RuntimeException('Could not encrypt provider action state.');
+        return 'v1.'.base64_encode($iv).'.'.base64_encode($tag).'.'.base64_encode($cipher);
     }
+
     private function decrypt(string $payload): string
     {
-        if(!function_exists('openssl_decrypt')||!str_starts_with($payload,'v1.'))return '';$p=explode('.',$payload,4);if(count($p)!==4)return '';$iv=base64_decode($p[1],true);$tag=base64_decode($p[2],true);$cipher=base64_decode($p[3],true);if($iv===false||$tag===false||$cipher===false)return '';$plain=openssl_decrypt($cipher,'aes-256-gcm',$this->cryptoKey(),OPENSSL_RAW_DATA,$iv,$tag);return $plain===false?'':$plain;
+        if(!function_exists('openssl_decrypt')||!str_starts_with($payload,'v1.'))return '';
+        $p=explode('.',$payload,4);if(count($p)!==4)return '';
+        $iv=base64_decode($p[1],true);$tag=base64_decode($p[2],true);$cipher=base64_decode($p[3],true);
+        if($iv===false||$tag===false||$cipher===false)return '';
+        $plain=openssl_decrypt($cipher,'aes-256-gcm',$this->cryptoKey(),OPENSSL_RAW_DATA,$iv,$tag);
+        return $plain===false?'':$plain;
     }
 
     private function requireReady(): void
