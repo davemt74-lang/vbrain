@@ -19,6 +19,8 @@
 <?php if($footerUser && in_array($footerPage,['today.php','dream-trip.php'],true)):?>
 <script type="application/json" data-vb-brain-config><?=json_encode([
     'api'=>app_url('api/brain-activity.php'),
+    'job_api'=>app_url('api/trip-agent-jobs.php'),
+    'csrf'=>csrf_token(),
 ],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
 <script src="<?=e(app_url('assets/brain-activity.js'))?>"></script>
 <?php endif;?>

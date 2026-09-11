@@ -58,11 +58,11 @@ $api=$read('api/brain-activity.php');
 foreach(['require_auth','VacationBrainActivityService','trip_id','activity','application/json','Cache-Control','OutOfBoundsException','http_response_code(404)','temporarily unavailable'] as $needle){if(strpos($api,$needle)===false){fwrite(STDERR,"Brain activity API missing {$needle}\n");exit(1);}}
 
 $js=$read('assets/brain-activity.js');
-foreach(['data-vb-brain-config',"page==='today.php'",'[data-trip-intelligence]','.vb-local-section','.trip-agent-tabs','insertAdjacentElement(\'afterend\'','Vacation Brain Activity','Agent EEG','Last 24 hours · actual system activity','setInterval','document.visibilityState'] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Brain Activity UI missing {$needle}\n");exit(1);}}
+foreach(['data-vb-brain-config',"page==='today.php'",'[data-trip-intelligence]','.vb-local-section','.trip-agent-tabs','insertAdjacentElement(\'afterend\'','Vacation Brain Activity','Agent EEG','Last 24 hours · actual system activity','setTimeout','document.visibilityState'] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Brain Activity UI missing {$needle}\n");exit(1);}}
 if(strpos($js,'Math.random')!==false){fwrite(STDERR,"Agent EEG must reflect real activity, not random animation.\n");exit(1);}
 
 $css=$read('assets/brain-activity.css');
-foreach(['vb-brain-shell','vb-brain-wave','vb-brain-agents','vb-brain-agent','vb-trip-eeg','vb-trip-eeg-channels','data-state="working"'] as $needle){if(strpos($css,str_replace('\\"','"',$needle))===false){fwrite(STDERR,"Brain Activity styling missing {$needle}\n");exit(1);}}
+foreach(['vb-brain-shell','vb-brain-wave','vb-brain-agents','vb-brain-agent','vb-trip-eeg','vb-trip-eeg-channels','data-state="working"'] as $needle){if(strpos($css,$needle)===false){fwrite(STDERR,"Brain Activity styling missing {$needle}\n");exit(1);}}
 
 $bootstrap=$read('app/bootstrap.php');if(strpos($bootstrap,"/Services/VacationBrainActivityService.php")===false){fwrite(STDERR,"VacationBrainActivityService is not loaded by bootstrap.\n");exit(1);}
 $footer=$read('partials/footer.php');foreach(['assets/brain-activity.css','data-vb-brain-config','api/brain-activity.php','assets/brain-activity.js',"['today.php','dream-trip.php']"] as $needle){if(strpos($footer,$needle)===false){fwrite(STDERR,"Brain Activity footer integration missing {$needle}\n");exit(1);}}
