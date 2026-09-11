@@ -64,6 +64,9 @@ jobs:
       - name: Check Destination Watches contract
         run: php tests/travel_watches_contract.php
 
+      - name: Check Brain Activity contract
+        run: php tests/brain_activity_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
@@ -76,6 +79,7 @@ jobs:
           node --check assets/photos.js
           node --check assets/trip-intelligence.js
           node --check assets/travel-watches.js
+          node --check assets/brain-activity.js
 
       - name: Verify ordered migrations
         shell: bash
@@ -118,6 +122,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'api/photos.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'api/trip-intelligence.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'api/travel-watches.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'api/brain-activity.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'photos.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'dream.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'dream-new.php'
@@ -138,6 +143,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripSupervisorService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TravelWatchService.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/VacationBrainActivityService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'partials/trip-agent-panel.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/destination-owner.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/photos.css'
@@ -150,6 +156,8 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-intelligence.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-watches.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-watches.js'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/brain-activity.css'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/brain-activity.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/shell-commerce.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/landing-merch-fix.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-trips.css'
