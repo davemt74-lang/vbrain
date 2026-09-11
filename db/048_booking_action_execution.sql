@@ -65,8 +65,8 @@ CREATE TABLE trip_booking_action_quotes (
   CONSTRAINT fk_trip_booking_action_quote_intent FOREIGN KEY (intent_id) REFERENCES trip_booking_action_intents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE trip_booking_action_intents
-  ADD CONSTRAINT fk_trip_booking_action_current_quote FOREIGN KEY (current_quote_id) REFERENCES trip_booking_action_quotes(id) ON DELETE SET NULL;
+-- current_quote_id is an application-managed pointer. It intentionally has no
+-- reverse FK to the quote table so the quote->intent cascade remains one-way.
 
 CREATE TABLE trip_booking_action_receipts (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
