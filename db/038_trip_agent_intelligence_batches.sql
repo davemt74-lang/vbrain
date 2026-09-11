@@ -11,7 +11,7 @@ CREATE TABLE trip_agent_batches (
   refreshed_types_json JSON NULL,
   snapshot_ids_json JSON NULL,
   context_json JSON NULL,
-  status ENUM('queued','refreshing','ready','failed') NOT NULL DEFAULT 'queued',
+  status ENUM('queued','refreshing','ready','failed','cancelled') NOT NULL DEFAULT 'queued',
   worker_token CHAR(32) NULL,
   attempt_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
   error_message VARCHAR(1000) NULL,
