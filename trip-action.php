@@ -17,9 +17,11 @@ try{
     $updated=$service->updateStatus($userId,$tripId,$actionId,$status);
     $label=match($status){'accepted'=>'Added to your active trip decisions.','dismissed'=>'Trip decision dismissed.','completed'=>'Trip decision completed.','open'=>'Trip decision reopened.',default=>'Trip decision updated.'};
     flash('success',$label);
-    $target=$returnTab;$fragment='next-moves';
-    if($status==='accepted'&&!empty($updated['target_tab'])){$target=(string)$updated['target_tab'];$fragment='agent-results';}
-    redirect('dream-trip.php?id='.$tripId.'&tab='.rawurlencode($target).'#'.$fragment);
+    if($status==='accepted'&&!empty($updated['target_tab'])){
+        $target=(string)$updated['target_tab'];
+        redirect('dream-trip.php?id='.$tripId.'&tab='.rawurlencode($target).'#agent-results');
+    }
+    redirect('dream-trip.php?id='.$tripId.'&tab='.rawurlencode($returnTab).'#next-moves');
 }catch(InvalidArgumentException|OutOfBoundsException $e){
     flash('trip_agent_error',$e->getMessage());
     redirect('dream-trip.php?id='.$tripId.'&tab='.rawurlencode($returnTab).'#next-moves');
