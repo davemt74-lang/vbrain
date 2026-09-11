@@ -29,14 +29,31 @@ final class TripAgentJobService
 
     public function enqueueAll(int $userId,int $tripId): array
     {
-        $this->requireReady();$this->assertTrip($userId,$tripId);if($this->activeTripCount($userId,$tripId)>0)throw new DomainException('Trip agents are already working. Let the current batch finish before running all agents again.');$this->assertCapacity($userId,count(self::RUN_ALL_ORDER));
-        $batchService=new TripAgentBatchService($this->pdo);$batch=$batchService->create($userId,$tripId,self::RUN_ALL_ORDER,'all');$batchId=(int)($batch['id']??0);$jobs=[];
+        return $this->enqueueAgentSet($userId,$tripId,self::RUN_ALL_ORDER,'all');
+    }
+
+    public function enqueueAgentSet(int $userId,int $tripId,array $agentTypes,string $scope='automation',array $requests=[]): array
+    {
+        $this->requireReady();$this->assertTrip($userId,$tripId);$seen=[];$agents=[];
+        foreach($agentTypes as $value){$agent=$this->agent((string)$value);if(isset($seen[$agent]))continue;$seen[$agent]=true;if($agent!=='overview')$agents[]=$agent;}
+        if(isset($seen['overview']))$agents[]='overview';if(!$agents)throw new InvalidArgumentException('At least one trip agent is required.');
+        $scope=in_array($scope,['single','all','automation'],true)?$scope:'automation';$prepared=[];foreach($agents as $agent){$request=trim((string)($requests[$agent]??''));if($request==='')$request=$this->defaultRequest($agent);if((function_exists('mb_strlen')?mb_strlen($request):strlen($request))>3000)throw new InvalidArgumentException('Agent task is too long.');$prepared[$agent]=$request;}
+        $jobs=[];$batchId=0;
         try{
-            $this->pdo->beginTransaction();$lock=$this->pdo->prepare('SELECT id FROM dream_trips WHERE id=? AND user_id=? FOR UPDATE');$lock->execute([$tripId,$userId]);if(!$lock->fetchColumn())throw new OutOfBoundsException('Trip not found.');if($this->activeTripCount($userId,$tripId)>0)throw new DomainException('Trip agents are already working. Let the current batch finish before running all agents again.');$this->assertCapacity($userId,count(self::RUN_ALL_ORDER));
-            foreach(self::RUN_ALL_ORDER as $agent){$stmt=$this->pdo->prepare("INSERT INTO trip_agent_jobs (user_id,dream_trip_id,batch_id,agent_type,request_text,status,progress,status_text,active_key) VALUES (?,?,?,?,?,'queued',0,'Preparing shared trip intelligence',?)");$stmt->execute([$userId,$tripId,$batchId,$agent,$this->defaultRequest($agent),$this->activeKey($tripId,$agent)]);$jobs[]=(int)$this->pdo->lastInsertId();}
+            $this->pdo->beginTransaction();
+            $userLock=$this->pdo->prepare('SELECT id FROM users WHERE id=? FOR UPDATE');$userLock->execute([$userId]);if(!$userLock->fetchColumn())throw new OutOfBoundsException('User not found.');
+            $tripLock=$this->pdo->prepare('SELECT id FROM dream_trips WHERE id=? AND user_id=? FOR UPDATE');$tripLock->execute([$tripId,$userId]);if(!$tripLock->fetchColumn())throw new OutOfBoundsException('Trip not found.');
+            if($this->activeTripCount($userId,$tripId)>0)throw new DomainException('Trip agents are already working. Let the current batch finish before starting another agent group.');$this->assertCapacity($userId,count($agents));
+            $batch=(new TripAgentBatchService($this->pdo))->create($userId,$tripId,$agents,$scope);$batchId=(int)($batch['id']??0);if($batchId<1)throw new RuntimeException('Unable to create the shared intelligence batch.');
+            foreach($agents as $agent){$stmt=$this->pdo->prepare("INSERT INTO trip_agent_jobs (user_id,dream_trip_id,batch_id,agent_type,request_text,status,progress,status_text,active_key) VALUES (?,?,?,?,?,'queued',0,'Preparing shared trip intelligence',?)");$stmt->execute([$userId,$tripId,$batchId,$agent,$prepared[$agent],$this->activeKey($tripId,$agent)]);$jobs[]=(int)$this->pdo->lastInsertId();}
             $this->pdo->commit();
-        }catch(Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();$batchService->deleteIfUnused($batchId);throw $e;}
+        }catch(Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
         return array_values(array_filter(array_map(fn(int $id)=>$this->jobForUser($userId,$id),$jobs)));
+    }
+
+    public function hasActiveTripJobs(int $userId,int $tripId): bool
+    {
+        if(!$this->ready()||$userId<1||$tripId<1)return false;return $this->activeTripCount($userId,$tripId)>0;
     }
 
     public function cancel(int $userId,int $jobId): array
