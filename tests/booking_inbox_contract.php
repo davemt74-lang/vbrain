@@ -18,13 +18,13 @@ foreach([
     'final class TripBookingImportService','trip_bookings','booking_fingerprint','source_hash','aes-256-gcm','redactPaymentData',
     'booking_import_parse','$useAi',"source=\\'import\\'",'booking_id','match_confidence','augmentCommandCenterSnapshot','safeAgentContext',
     'provider_url','flight_number','departure_iata','arrival_iata','array_intersect_key','autoMaterializeEligible','markNeedsReview',
-    'finishImportLink','assertActiveTrip',"hash('sha256',\$sourceType.'|'.\$sourceForHash)",
-    "([A-Z]{2}|[A-Z][0-9]|[0-9][A-Z])\\s?([0-9]{1,4})",
+    'finishImportLink','assertActiveTrip','hash(\'sha256\',$sourceType.\'|\'.$sourceForHash)',
+    '([A-Z]{2}|[A-Z][0-9]|[0-9][A-Z])\\s?([0-9]{1,4})',
 ] as $needle){if(strpos($service,$needle)===false){fwrite(STDERR,"Booking Inbox service missing {$needle}\n");exit(1);}}
-if(strpos($service,".($filename??'').'|'.")!==false){fwrite(STDERR,"Booking Inbox source dedupe must not depend on the uploaded filename.\n");exit(1);}
+if(strpos($service,'.($filename??\'\').\'|\'.')!==false){fwrite(STDERR,"Booking Inbox source dedupe must not depend on the uploaded filename.\n");exit(1);}
 if(strpos($service,"status='confirmed'")!==false||strpos($service,"'confirmed','unknown'")!==false){fwrite(STDERR,"Booking Inbox must not automatically mark imported reservations provider-verified Confirmed.\n");exit(1);}
 if(strpos($service,"'booked','unknown'")===false){fwrite(STDERR,"Imported canonical reservations must begin as Booked, not Confirmed.\n");exit(1);}
-if(strpos($service,"if($useAi&&trim($text)!=='')")===false){fwrite(STDERR,"AI booking parsing must remain explicit opt-in per import.\n");exit(1);}
+if(strpos($service,'if($useAi&&trim($text)!==\'\')')===false){fwrite(STDERR,"AI booking parsing must remain explicit opt-in per import.\n");exit(1);}
 if(strpos($service,'[payment-card number removed]')===false||strpos($service,'security code')===false){fwrite(STDERR,"Booking Inbox payment-data redaction guard is missing.\n");exit(1);}
 foreach(['TripBookingActionService','executeDirectCancellation','providerCheckout','curl_exec'] as $forbidden){if(strpos($service,$forbidden)!==false){fwrite(STDERR,"Booking Inbox must not execute provider or transaction actions: {$forbidden}\n");exit(1);}}
 
