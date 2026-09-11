@@ -2,6 +2,7 @@
 'use strict';
 var root=document.querySelector('[data-vb-command-center]');var cfgNode=document.querySelector('[data-vb-command-config]');if(!root||!cfgNode)return;
 var cfg={};try{cfg=JSON.parse(cfgNode.textContent||'{}');}catch(e){return;}var api=String(cfg.api||'');if(!api)return;
+var localSection=document.querySelector('.vb-local-section');if(localSection&&root.previousElementSibling!==localSection)localSection.insertAdjacentElement('afterend',root);
 var timer=null,busy=false;
 function esc(v){return String(v===null||v===undefined?'':v).replace(/[&<>'"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c];});}
 function age(v){if(!v)return'';var ts=Date.parse(String(v).replace(' ','T'));if(!isFinite(ts))return'';var s=Math.max(0,Math.floor((Date.now()-ts)/1000));if(s<60)return'now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
