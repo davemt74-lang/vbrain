@@ -83,6 +83,7 @@ require_once __DIR__ . '/Services/TripAgentJobService.php';
 require_once __DIR__ . '/Services/TripAgentAutomationService.php';
 require_once __DIR__ . '/Services/TripAgentExecutionService.php';
 require_once __DIR__ . '/Services/TripBookingService.php';
+require_once __DIR__ . '/Services/TripBookingActionService.php';
 require_once __DIR__ . '/Services/TripFlightTrackingService.php';
 require_once __DIR__ . '/Services/TripBookingReminderService.php';
 require_once __DIR__ . '/Services/TripTravelOperationsService.php';
