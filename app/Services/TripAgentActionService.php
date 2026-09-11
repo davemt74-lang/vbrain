@@ -12,7 +12,8 @@ final class TripAgentActionService
     {
         return db_table_exists('trip_agent_actions')
             && db_table_exists('trip_agent_batches')
-            && db_column_exists('trip_agent_batches','actions_synced_at');
+            && db_column_exists('trip_agent_batches','actions_synced_at')
+            && db_column_exists('trip_agent_batches','actions_sync_error');
     }
 
     public function syncCompletedOverviewBatches(int $limit=20): array
@@ -29,8 +30,11 @@ final class TripAgentActionService
                 $dashboard=$batchService->dashboardForJob(['batch_id'=>$batchId,'user_id'=>$userId,'dream_trip_id'=>$tripId,'agent_type'=>'overview']);
                 if(!is_array($dashboard))throw new RuntimeException('Completed Overview batch context is unavailable.');
                 $this->syncFromDashboard($userId,$tripId,$dashboard,$batchId);
-                $stmt=$this->pdo->prepare('UPDATE trip_agent_batches SET actions_synced_at=NOW() WHERE id=? AND actions_synced_at IS NULL');$stmt->execute([$batchId]);$result['synced']++;$result['batches'][]=$batchId;
-            }catch(Throwable $e){$result['failed']++;}
+                $stmt=$this->pdo->prepare('UPDATE trip_agent_batches SET actions_synced_at=NOW(),actions_sync_error=NULL WHERE id=? AND actions_synced_at IS NULL');$stmt->execute([$batchId]);$result['synced']++;$result['batches'][]=$batchId;
+            }catch(Throwable $e){
+                $message=$this->clip($e->getMessage(),500);error_log('Trip Agent action sync failed for batch '.$batchId.': '.$message);
+                $stmt=$this->pdo->prepare('UPDATE trip_agent_batches SET actions_synced_at=NOW(),actions_sync_error=? WHERE id=? AND actions_synced_at IS NULL');$stmt->execute([$message,$batchId]);$result['failed']++;
+            }
         }
         return $result;
     }
