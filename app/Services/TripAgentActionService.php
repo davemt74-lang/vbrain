@@ -43,9 +43,10 @@ final class TripAgentActionService
             $owned=(new DreamService($this->pdo))->get($userId,$tripId,false);
             if(!$owned)throw new OutOfBoundsException('Trip not found.');
         }
-        $overview=(new TripSupervisorService($this->pdo))->overview($userId,$tripId,$dashboard);
-        $suggestions=is_array($overview['suggestions']??null)?array_slice($overview['suggestions'],0,8):[];
         $batch=is_array($dashboard['_agent_batch']??null)?$dashboard['_agent_batch']:[];
+        $batchSupervisor=is_array($batch['supervisor']??null)?$batch['supervisor']:[];
+        $overview=($batchId!==null&&is_array($batchSupervisor['suggestions']??null))?$batchSupervisor:(new TripSupervisorService($this->pdo))->overview($userId,$tripId,$dashboard);
+        $suggestions=is_array($overview['suggestions']??null)?array_slice($overview['suggestions'],0,8):[];
         $snapshotIds=is_array($batch['snapshot_ids']??null)?$batch['snapshot_ids']:[];
         $preparedAt=(string)($batch['prepared_at']??'');
         $active=[];$ownTx=!$this->pdo->inTransaction();
