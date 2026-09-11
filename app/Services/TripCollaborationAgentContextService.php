@@ -34,7 +34,8 @@ final class TripCollaborationAgentContextService
                 (SELECT COUNT(*) FROM trip_collaboration_votes v WHERE v.dream_trip_id=dt.id) vote_count
             FROM dream_trips dt
             LEFT JOIN trip_collaborators tc ON tc.dream_trip_id=dt.id AND tc.user_id=? AND tc.status='active'
-            WHERE dt.status NOT IN ('abandoned','completed') AND (dt.user_id=? OR tc.user_id IS NOT NULL)
+            WHERE dt.status NOT IN ('abandoned','completed')
+              AND ((dt.user_id=? AND EXISTS (SELECT 1 FROM trip_collaborators ownshare WHERE ownshare.dream_trip_id=dt.id AND ownshare.status='active')) OR tc.user_id IS NOT NULL)
             ORDER BY COALESCE(dt.start_date,'9999-12-31'),dt.updated_at DESC,dt.id DESC LIMIT $limit";
         $stmt=$this->pdo->prepare($sql);$stmt->execute([$userId,$userId,$userId,$userId]);return $stmt->fetchAll()?:[];
     }
