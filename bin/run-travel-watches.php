@@ -19,8 +19,11 @@ try{
     $result=$service->runDue($limit);
     $operations=new TripTravelOperationsService($pdo);
     $result['travel_operations']=$operations->ready()?$operations->syncUpcoming($limit):['checked'=>0,'updated'=>0,'errors'=>0,'upgrade_required'=>true];
+    $proactive=new ProactiveTravelService($pdo);
+    $result['proactive']=$proactive->ready()?$proactive->runUpcoming($limit):['checked'=>0,'issues'=>0,'notifications'=>0,'research_started'=>0,'briefings'=>0,'errors'=>0,'upgrade_required'=>true];
+    $errors=(int)($result['errors']??0)+(int)($result['travel_operations']['errors']??0)+(int)($result['proactive']['errors']??0);
     fwrite(STDOUT,json_encode($result,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL);
-    exit((($result['errors']??0)>0||($result['travel_operations']['errors']??0)>0)?2:0);
+    exit($errors>0?2:0);
 }catch(Throwable $e){
     fwrite(STDERR,'Travel watch worker failed: '.$e->getMessage().PHP_EOL);
     exit(1);

@@ -87,6 +87,7 @@ require_once __DIR__ . '/Services/TripFlightTrackingService.php';
 require_once __DIR__ . '/Services/TripBookingReminderService.php';
 require_once __DIR__ . '/Services/TripTravelOperationsService.php';
 require_once __DIR__ . '/Services/TripCommandCenterService.php';
+require_once __DIR__ . '/Services/ProactiveTravelService.php';
 require_once __DIR__ . '/Services/VacationBrainActivityService.php';
 require_once __DIR__ . '/Services/TravelMatchService.php';
 require_once __DIR__ . '/Services/TravelMessageService.php';
