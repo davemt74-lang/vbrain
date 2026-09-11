@@ -32,5 +32,9 @@ CREATE TABLE trip_agent_actions (
   CONSTRAINT chk_trip_agent_action_priority CHECK (priority BETWEEN 0 AND 100)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+ALTER TABLE trip_agent_batches
+  ADD COLUMN actions_synced_at DATETIME NULL AFTER completed_at,
+  ADD KEY idx_trip_agent_batch_actions_sync (actions_synced_at,id);
+
 INSERT INTO app_meta (meta_key,meta_value) VALUES ('app_version','1.32')
 ON DUPLICATE KEY UPDATE meta_value=VALUES(meta_value);
