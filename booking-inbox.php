@@ -6,8 +6,8 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     try{
         $action=strtolower(trim((string)($_POST['action']??'')));
         if(!$service->ready())throw new RuntimeException('Run System Upgrade before using Booking Inbox.');
-        if($action==='receive'){$row=$service->receive($userId,$_POST,$_FILES['confirmation_file']??null);if(!empty($row['duplicate']))flash('success','That confirmation is already in Booking Inbox.');elseif(!empty($row['booking_id']))flash('success','Confirmation imported and added to the matched trip. Review it when convenient.');else flash('success','Confirmation imported. Review the trip match or missing details.');redirect('booking-inbox.php?review='.(int)$row['id']);}
-        elseif($action==='verify'){$row=$service->verify($userId,(int)($_POST['import_id']??0),$_POST);flash('success','Booking confirmation verified and linked to the trip.');redirect('booking-inbox.php?review='.(int)$row['id']);}
+        if($action==='receive'){$row=$service->receive($userId,$_POST,$_FILES['confirmation_file']??null);if(!empty($row['duplicate']))flash('success','That confirmation is already in Booking Inbox.');elseif(!empty($row['booking_id']))flash('success','Confirmation imported and added to the matched trip as Booked. Review it when convenient.');else flash('success','Confirmation imported. Review the trip match or missing details.');redirect('booking-inbox.php?review='.(int)$row['id']);}
+        elseif($action==='verify'){$row=$service->verify($userId,(int)($_POST['import_id']??0),$_POST);flash('success','Booking confirmation reviewed and linked to the trip.');redirect('booking-inbox.php?review='.(int)$row['id']);}
         elseif($action==='reject'){$service->reject($userId,(int)($_POST['import_id']??0));flash('success','Booking Inbox item rejected.');redirect('booking-inbox.php');}
         else throw new InvalidArgumentException('Unknown Booking Inbox action.');
     }catch(InvalidArgumentException|OutOfBoundsException|DomainException $e){$error=$e->getMessage();}
@@ -15,7 +15,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
 }
 $rows=$service->ready()?$service->inbox($userId,120):[];$trips=$service->ready()?$service->trips($userId):[];$reviewId=max(0,(int)($_GET['review']??0));$review=$reviewId&&$service->ready()?$service->get($userId,$reviewId,true):null;$success=flash('success');
 $pageStyles=['assets/trip-planning-hub.css','assets/booking-inbox.css'];$title='Booking Inbox — Vacation Brain';
-function vb_bi_label(string $v): string{return ucwords(str_replace('_',' ',$v));}
+function vb_bi_label(string $v): string{return $v==='verified'?'Traveler verified':ucwords(str_replace('_',' ',$v));}
 function vb_bi_dt(mixed $v): string{$s=trim((string)$v);if($s==='')return ''; $t=strtotime($s);return $t?date('M j, Y · g:i A',$t):$s;}
 function vb_bi_input_dt(mixed $v): string{$s=trim((string)$v);if($s==='')return ''; $t=strtotime($s);return $t?date('Y-m-d\TH:i',$t):'';}
 require __DIR__.'/partials/header.php';
@@ -47,7 +47,7 @@ require __DIR__.'/partials/header.php';
         <label>Or upload confirmation<input class="input" type="file" name="confirmation_file" accept=".txt,.html,.htm,.eml,.pdf,.jpg,.jpeg,.png,.webp,text/plain,text/html,message/rfc822,application/pdf,image/jpeg,image/png,image/webp"><small>TXT, HTML, EML and text-readable PDFs can be parsed locally. Images are accepted as references but are not retained or OCR'd in v1.44; paste their text to finish the import.</small></label>
         <label class="vb-check"><input type="checkbox" name="auto_add" value="1" checked> Automatically add high-confidence matches as <strong>Booked</strong></label>
         <label class="vb-check"><input type="checkbox" name="use_ai" value="1"> Use the configured AI model to improve extraction <small>(explicitly sends the redacted confirmation text to your configured model)</small></label>
-        <div class="vb-bi-privacy">Payment-card-like numbers and security codes are removed before the retained source copy is encrypted. Booking confirmation codes stay private and are not put into ordinary agent context.</div>
+        <div class="vb-bi-privacy">Payment-card-like numbers and security codes are removed before the retained source copy is encrypted. Booking confirmation codes stay private and are not put into ordinary agent context. Imported bookings are not provider-verified Confirmed unless a separate provider verification later proves that state.</div>
         <button class="button primary" type="submit">Import confirmation</button>
       </form>
     </div>
@@ -69,7 +69,7 @@ require __DIR__.'/partials/header.php';
 
   <?php if($review):$p=(array)($review['parsed']??[]);$s=(array)($review['sensitive']??[]);?>
   <section class="dashboard-card vb-bi-review" id="review">
-    <div class="vb-bi-head"><div><span class="eyebrow">Private review</span><h2><?=e((string)($p['title']??$review['original_filename']??'Booking confirmation'))?></h2><p><?=e(vb_bi_label((string)$review['status']))?> · <?=e((string)$review['parser_mode'])?> parser · match <?=(int)$review['match_confidence']?>%</p></div><div class="vb-bi-actions"><a class="button secondary small" href="<?=e(app_url('booking-inbox-document.php?id='.(int)$review['id']))?>">Private source copy</a><?php if(!empty($review['booking_id'])&&!empty($review['dream_trip_id'])):?><a class="button secondary small" href="<?=e(app_url('trip-bookings.php?id='.(int)$review['dream_trip_id']))?>">Open linked booking</a><?php endif;?></div></div>
+    <div class="vb-bi-head"><div><span class="eyebrow">Private review</span><h2><?=e((string)($p['title']??$review['original_filename']??'Booking confirmation'))?></h2><p><?=e(vb_bi_label((string)$review['status']))?> · <?=e((string)$review['parser_mode'])?> parser · match <?=(int)$review['match_confidence']?>%</p></div><div class="vb-bi-actions"><a class="button secondary small" href="<?=e(app_url('booking-inbox-document.php?id='.(int)$review['id']))?>">Redacted private source copy</a><?php if(!empty($review['booking_id'])&&!empty($review['dream_trip_id'])):?><a class="button secondary small" href="<?=e(app_url('trip-bookings.php?id='.(int)$review['dream_trip_id']))?>">Open linked booking</a><?php endif;?></div></div>
     <?php if(!empty($review['match_reason'])):?><div class="vb-bi-match"><strong>Trip match:</strong> <?=e((string)$review['match_reason'])?></div><?php endif;?>
     <?php if(!empty($review['error_message'])):?><div class="alert error"><?=e((string)$review['error_message'])?></div><?php endif;?>
     <form method="post" class="vb-bi-review-form">
@@ -89,7 +89,7 @@ require __DIR__.'/partials/header.php';
       <label>Currency<input class="input" name="currency" maxlength="3" value="<?=e((string)($p['currency']??'USD'))?>"></label>
       <label class="span-2">Provider URL<input class="input" type="url" name="provider_url" maxlength="1500" value="<?=e((string)($p['provider_url']??''))?>"></label>
       <label class="span-2">Notes<textarea class="input" name="notes" maxlength="3000"><?=e((string)($p['notes']??''))?></textarea></label>
-      <div class="span-2 vb-bi-review-actions"><button class="button primary" type="submit">Verify & link booking</button></div>
+      <div class="span-2 vb-bi-review-actions"><button class="button primary" type="submit">Review & link booking</button></div>
     </form>
     <?php if((string)$review['status']!=='rejected'):?><form method="post" class="vb-bi-reject" onsubmit="return confirm('Reject this Booking Inbox item? The linked canonical booking, if any, will not be deleted.');"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="reject"><input type="hidden" name="import_id" value="<?=(int)$review['id']?>"><button class="button secondary small" type="submit">Reject Inbox item</button></form><?php endif;?>
   </section>
