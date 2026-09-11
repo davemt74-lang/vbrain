@@ -43,13 +43,14 @@ function plan_hub_trip_card(array $trip,TripCollaborationService $collaboration)
 require __DIR__.'/partials/header.php';
 ?>
 <section class="dashboard trip-index-page vb-plan-hub"><div class="shell">
-  <div class="dashboard-head trip-index-head vb-plan-hub-head"><div><div class="eyebrow">Trip Intelligence · Planning Hub</div><h1>Trips the brain is currently thinking about.</h1><p class="muted">Trips, live agent work, approvals, provider signals and learned travel memory now live together here.</p></div><a class="button primary" href="<?=e(app_url('dream-new.php'))?>">+ New trip</a></div>
-
-  <nav class="vb-plan-hub-tabs" aria-label="Trip planning sections">
-    <?php foreach($views as $key=>$label):$count=$key==='trips'?count($activeTrips):($key==='agents'&&$activeView==='agents'?$activeAgentCount:null);?>
-      <a class="<?=$activeView===$key?'active':''?>" href="<?=e(app_url('dream.php?view='.$key))?>" aria-current="<?=$activeView===$key?'page':'false'?>"><span><?=e($label)?></span><?php if($count!==null):?><b><?=$count?></b><?php endif;?></a>
-    <?php endforeach;?>
-  </nav>
+  <div class="vb-plan-hub-navrow">
+    <nav class="vb-plan-hub-tabs" aria-label="Trip planning sections">
+      <?php foreach($views as $key=>$label):$count=$key==='trips'?count($activeTrips):($key==='agents'&&$activeView==='agents'?$activeAgentCount:null);?>
+        <a class="<?=$activeView===$key?'active':''?>" href="<?=e(app_url('dream.php?view='.$key))?>" aria-current="<?=$activeView===$key?'page':'false'?>"><span><?=e($label)?></span><?php if($count!==null):?><b><?=$count?></b><?php endif;?></a>
+      <?php endforeach;?>
+    </nav>
+    <a class="button primary vb-plan-hub-add-trip" href="<?=e(app_url('dream-new.php'))?>">+ Add Trip</a>
+  </div>
 
   <?php if($activeView==='trips'):?>
     <section class="vb-plan-hub-panel" data-plan-view="trips">
