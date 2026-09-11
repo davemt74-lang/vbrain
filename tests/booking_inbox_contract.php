@@ -29,7 +29,7 @@ if(strpos($service,'[payment-card number removed]')===false||strpos($service,'se
 foreach(['TripBookingActionService','executeDirectCancellation','providerCheckout','curl_exec'] as $forbidden){if(strpos($service,$forbidden)!==false){fwrite(STDERR,"Booking Inbox must not execute provider or transaction actions: {$forbidden}\n");exit(1);}}
 
 $page=$read('booking-inbox.php');
-foreach(['Booking Inbox','source_text','confirmation_file','Auto-match to an active trip','use_ai','explicitly sends the redacted confirmation text','auto_add','Verify & link booking','booking-inbox-document.php','migration 052'] as $needle){if(strpos($page,$needle)===false){fwrite(STDERR,"Booking Inbox UI missing {$needle}\n");exit(1);}}
+foreach(['Booking Inbox','source_text','confirmation_file','Auto-match to an active trip','use_ai','explicitly sends the redacted confirmation text','auto_add','Review & link booking','Traveler verified','booking-inbox-document.php','migration 052','not provider-verified Confirmed'] as $needle){if(strpos($page,$needle)===false){fwrite(STDERR,"Booking Inbox UI missing {$needle}\n");exit(1);}}
 if(strpos($page,'name="_csrf"')===false){fwrite(STDERR,"Booking Inbox mutations must remain CSRF protected.\n");exit(1);}
 
 $doc=$read('booking-inbox-document.php');
