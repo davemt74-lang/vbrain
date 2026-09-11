@@ -1,0 +1,18 @@
+<?php
+declare(strict_types=1);
+
+$root=dirname(__DIR__);
+$files=['dream.php','today.php','partials/footer.php','assets/trip-planning-hub.css','assets/trip-planning-hub.js','assets/trip-workspace-tabs.css','assets/trip-workspace-tabs.js','partials/trip-command-center.php','partials/traveler-memory-summary.php','partials/proactive-dashboard-summary.php'];
+foreach($files as $file){if(!is_file($root.'/'.$file)){fwrite(STDERR,"Missing Trip Planning Hub file: {$file}\n");exit(1);}}
+$read=static fn(string $file): string => file_get_contents($root.'/'.$file) ?: '';
+$dream=$read('dream.php');
+foreach(['Trip Intelligence · Planning Hub','Active Trips','Live Agents','Command Center','Memory & Signals','VacationBrainActivityService','TripCommandCenterService','data-plan-brain','api/brain-activity.php','trip-command-center.php','traveler-memory-summary.php','proactive-dashboard-summary.php','trip-planning-hub.js'] as $needle){if(strpos($dream,$needle)===false){fwrite(STDERR,"Plan Trip hub missing {$needle}\n");exit(1);}}
+foreach(['view=trips','view=agents','view=operations','view=memory'] as $needle){if(strpos($dream,$needle)===false){fwrite(STDERR,"Plan Trip hub tab route missing {$needle}\n");exit(1);}}
+$today=$read('today.php');foreach(['Local Day Trips','Weekend Getaways','Multi-Day Excursions'] as $needle){if(strpos($today,$needle)===false){fwrite(STDERR,"Today discovery surface lost {$needle}\n");exit(1);}}
+$footer=$read('partials/footer.php');if(strpos($footer,"$footerPage==='today.php'")!==false||strpos($footer,"['today.php','dream-trip.php']")!==false){fwrite(STDERR,"Today must not mount trip-planning AI panels or Brain Activity.\n");exit(1);}foreach(['trip-workspace-tabs.css','trip-workspace-tabs.js'] as $needle){if(strpos($footer,$needle)===false){fwrite(STDERR,"Per-trip workspace integration missing {$needle}\n");exit(1);}}
+$workspace=$read('assets/trip-workspace-tabs.js');foreach(["['plan','Plan']","['next','Next Moves']","['live','Live Data']","['proactive','Proactive']","['settings','Settings']",'.trip-control-card,.trip-provider-row','.trip-next-moves','.vb-live-data-wrap','.vb-proactive-panel',"window.location.hash==='#next-moves'"] as $needle){if(strpos($workspace,$needle)===false){fwrite(STDERR,"Per-trip tab organizer missing {$needle}\n");exit(1);}}
+$hubJs=$read('assets/trip-planning-hub.js');foreach(['data-plan-brain','api','setTimeout','document.visibilityState','30' ] as $needle){if(strpos($hubJs,$needle)===false){fwrite(STDERR,"Planning hub live activity client missing {$needle}\n");exit(1);}}
+$workspaceCss=$read('assets/trip-workspace-tabs.css');foreach(['vb-trip-workspace-tabs','vb-trip-workspace-panel','data-workspace-panel="settings"'] as $needle){if(strpos($workspaceCss,$needle)===false){fwrite(STDERR,"Per-trip workspace styling missing {$needle}\n");exit(1);}}
+$hubCss=$read('assets/trip-planning-hub.css');foreach(['vb-plan-hub-tabs','vb-plan-agent-grid','vb-plan-memory-links'] as $needle){if(strpos($hubCss,$needle)===false){fwrite(STDERR,"Planning hub styling missing {$needle}\n");exit(1);}}
+if(function_exists('exec')){foreach(['assets/trip-planning-hub.js','assets/trip-workspace-tabs.js'] as $file){$out=[];$code=0;exec('node --check '.escapeshellarg($root.'/'.$file).' 2>&1',$out,$code);if($code!==0){fwrite(STDERR,"JavaScript syntax failed for {$file}: ".implode("\n",$out)."\n");exit(1);}}}
+echo "Trip Planning Hub contract OK\n";
