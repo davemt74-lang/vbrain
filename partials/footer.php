@@ -1,5 +1,5 @@
 <?php $footerUser=current_user(); $footerPage=basename($_SERVER['PHP_SELF']??''); ?>
-<?php if($footerUser && $footerPage==='today.php' && isset($pdo,$userId)):?><?php require __DIR__.'/trip-command-center.php';?><?php endif;?>
+<?php if($footerUser && $footerPage==='today.php' && isset($pdo,$userId)):?><?php require __DIR__.'/trip-command-center.php';?><?php require __DIR__.'/traveler-memory-summary.php';?><?php endif;?>
 </main>
 <?php if(!$footerUser):?><footer class="site-footer"><div class="shell footer-shell"><div><strong>Vacation Brain</strong><div class="muted small">Daydream more. Work less.</div></div><div class="footer-copy"><?=e(diagnosis_disclaimer())?></div></div></footer><?php endif;?>
 <link rel="stylesheet" href="<?=e(app_url('assets/shell-commerce.css'))?>">
@@ -7,7 +7,7 @@
 <?php if($footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-bookings.css'))?>" data-vb-booking-style><?php endif;?>
 <?php if($footerUser):?><link rel="stylesheet" href="<?=e(app_url('assets/travel-watches.css'))?>" data-vb-watch-style><?php endif;?>
 <?php if($footerUser && in_array($footerPage,['today.php','dream-trip.php'],true)):?><link rel="stylesheet" href="<?=e(app_url('assets/brain-activity.css'))?>" data-vb-brain-style><?php endif;?>
-<?php if($footerUser && $footerPage==='today.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-command-center.css'))?>" data-vb-command-style><?php endif;?>
+<?php if($footerUser && $footerPage==='today.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-command-center.css'))?>" data-vb-command-style><link rel="stylesheet" href="<?=e(app_url('assets/traveler-memory-summary.css'))?>" data-vb-memory-summary-style><?php endif;?>
 <?php require __DIR__.'/shell-actions.php'; ?>
 <script src="<?=e(app_url('assets/app.js'))?>"></script>
 <script src="<?=e(app_url('assets/shell-commerce.js'))?>"></script>
