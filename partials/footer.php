@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="<?=e(app_url('assets/shell-commerce.css'))?>">
 <?php if($footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-agent-tabs.css'))?>"><?php endif;?>
 <?php if($footerUser):?><link rel="stylesheet" href="<?=e(app_url('assets/travel-watches.css'))?>" data-vb-watch-style><?php endif;?>
+<?php if($footerUser && in_array($footerPage,['today.php','dream-trip.php'],true)):?><link rel="stylesheet" href="<?=e(app_url('assets/brain-activity.css'))?>" data-vb-brain-style><?php endif;?>
 <?php require __DIR__.'/shell-actions.php'; ?>
 <script src="<?=e(app_url('assets/app.js'))?>"></script>
 <script src="<?=e(app_url('assets/shell-commerce.js'))?>"></script>
@@ -14,6 +15,12 @@
     'watches_url'=>app_url('watches.php'),
 ],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
 <script src="<?=e(app_url('assets/travel-watches.js'))?>"></script>
+<?php endif;?>
+<?php if($footerUser && in_array($footerPage,['today.php','dream-trip.php'],true)):?>
+<script type="application/json" data-vb-brain-config><?=json_encode([
+    'api'=>app_url('api/brain-activity.php'),
+],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
+<script src="<?=e(app_url('assets/brain-activity.js'))?>"></script>
 <?php endif;?>
 <?php if($footerUser && $footerPage!=='match-chat.php'):
 $footerAgentPrefill=(string)($agentComposerPrefill??'');
