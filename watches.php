@@ -27,7 +27,7 @@ require __DIR__.'/partials/header.php';
   <div class="travel-watch-head"><div><span class="eyebrow">Vacation Brain monitors</span><h1>Destination Watches</h1><p>Watch the parts of a trip that actually change: weather, flight status and airfare, lodging, events, and local options.</p></div><div class="travel-watch-head-actions"><a class="button secondary small" href="<?=e(app_url('dream.php'))?>">Plan a trip</a><a class="button secondary small" href="<?=e(app_url('notifications.php'))?>">Alerts</a></div></div>
   <?php if($success):?><div class="alert success"><?=e($success)?></div><?php endif;?>
   <?php if($error):?><div class="alert error"><?=e($error)?></div><?php endif;?>
-  <?php if(!$ready):?><div class="trip-intel-alert"><strong>Destination Watches need the latest database upgrade.</strong> <?php if(is_admin()):?><a href="<?=e(app_url('upgrade.php'))?>">Run System Upgrade</a><?php else:?>An administrator needs to apply the latest migrations.<?php endif;?></div><?php endif;?>
+  <?php if(!$ready):?><div class="trip-intel-alert"><strong>Destination Watches need the latest database upgrade.</strong> <?php if(is_admin()):?><a href="<?=e(app_url('upgrade.php'))?>">Run System Upgrade</a><?php else:?>An administrator needs to apply migration 036 or later.<?php endif;?></div><?php endif;?>
 
   <section class="dashboard-card travel-watch-create">
     <div><span class="eyebrow">Watch a planned trip</span><h2>Give the agents something to keep an eye on.</h2><p>Trip watches can monitor weather, flights, lodging, events and local data. Lodging is enabled only when the trip has a real stay window, and route-specific flight data still requires a trip route.</p></div>
