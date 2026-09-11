@@ -1,2 +1,5 @@
 /* Landing header cleanup: keep diagnosis CTAs in page content, not the top navigation. */
 body[data-page="index.php"] .vbe-nav-cta{display:none!important}
+
+/* Use the manually uploaded high-resolution Vacation Brain hero asset. */
+body[data-page="index.php"] .vbe-hero{background-image:url("/assets/landing/ChatGPT Image Sep 10, 2026, 06_01_32 PM.png")!important}
