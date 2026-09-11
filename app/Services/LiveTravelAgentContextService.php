@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 /**
  * Gives the main Vacation Brain agent read-only context from the nearest active
- * trip's already-saved intelligence snapshots plus the persisted proactive and
- * local-concierge ledgers. It never refreshes a provider and never includes booking confirmation codes,
- * booking notes, payment data, private Trip Memory notes, or exact device coordinates.
+ * trip's already-saved intelligence snapshots plus the persisted proactive,
+ * local-concierge, and autonomous-operations ledgers. It never refreshes a provider
+ * and never includes booking confirmation codes, booking notes, payment data,
+ * private Trip Memory notes, or exact device coordinates.
  */
 final class LiveTravelAgentContextService
 {
@@ -25,9 +26,11 @@ final class LiveTravelAgentContextService
             $events=$this->payload($snap,'events');if(!empty($events['items']))$facts[]='events snapshot has '.count((array)$events['items']).' matching events ('.($health['events']['freshness']??'unknown freshness').')';$places=$this->payload($snap,'places');if(!empty($places['items']))$facts[]='local places snapshot has '.count((array)$places['items']).' results ('.($health['places']['freshness']??'unknown freshness').')';
         }
         $proactive='';try{if(class_exists('ProactiveTravelService')){$service=new ProactiveTravelService($this->pdo);if($service->ready())$proactive=$service->agentContext($userId,$tripId,6);}}catch(Throwable){}
-        if(!$facts&&$proactive===''&&$local==='')return '';$destination=trim((string)($trip['destination_name']??''))?:trim((string)$trip['name']);$dates=trim((string)($trip['date_label']??''));$sections=[];
+        $autonomy='';try{if(class_exists('AutonomousTravelOperationsService')){$service=new AutonomousTravelOperationsService($this->pdo);if($service->ready())$autonomy=$service->agentContext($userId,$tripId);}}catch(Throwable){}
+        if(!$facts&&$proactive===''&&$local===''&&$autonomy==='')return '';$destination=trim((string)($trip['destination_name']??''))?:trim((string)$trip['name']);$dates=trim((string)($trip['date_label']??''));$sections=[];
         if($facts)$sections[]='LIVE TRIP CONTEXT (saved snapshots only; no provider refresh was triggered): nearest active trip "'.(string)$trip['name'].'" to '.$destination.($dates!==''?' · '.$dates:'').'. '.implode('; ',$facts).'. Never treat indicative airfare or lodging search results as confirmed bookings. Booking confirmation codes, booking notes, payment data, and private trip-memory notes are excluded.';
         if($proactive!=='')$sections[]=$proactive;
+        if($autonomy!=='')$sections[]=$autonomy;
         if($local!=='')$sections[]=$local;
         return implode("\n\n",$sections);
     }
@@ -35,8 +38,10 @@ final class LiveTravelAgentContextService
     public function fallbackSummary(int $userId): ?array
     {
         $concierge=null;try{if(class_exists('LocalConciergeService')){$service=new LocalConciergeService($this->pdo);if($service->ready())$concierge=$service->fallback($userId);}}catch(Throwable){}
-        $trip=$this->nearestTrip($userId);if(!$trip){return $concierge?['trip'=>['name'=>'your shared trip'],'health'=>[],'weather'=>[],'flights'=>[],'lodging'=>[],'events'=>[],'places'=>[],'proactive'=>[],'concierge'=>$concierge]:null;}
-        $dashboard=(new TripIntelligenceService($this->pdo))->dashboard($userId,(int)$trip['id']);$snap=$dashboard['snapshots']??[];$health=(new TripLiveIntelligenceService($this->pdo))->health($dashboard);$proactive=[];try{if(class_exists('ProactiveTravelService')){$service=new ProactiveTravelService($this->pdo);if($service->ready())$proactive=$service->issuesForTrip($userId,(int)$trip['id'],6,true);}}catch(Throwable){}return ['trip'=>$trip,'health'=>$health,'weather'=>$this->payload($snap,'weather'),'flights'=>$this->payload($snap,'flights'),'lodging'=>$this->payload($snap,'lodging'),'events'=>$this->payload($snap,'events'),'places'=>$this->payload($snap,'places'),'proactive'=>$proactive,'concierge'=>$concierge];
+        $trip=$this->nearestTrip($userId);if(!$trip){return $concierge?['trip'=>['name'=>'your shared trip'],'health'=>[],'weather'=>[],'flights'=>[],'lodging'=>[],'events'=>[],'places'=>[],'proactive'=>[],'concierge'=>$concierge,'autonomy'=>null]:null;}
+        $tripId=(int)$trip['id'];$dashboard=(new TripIntelligenceService($this->pdo))->dashboard($userId,$tripId);$snap=$dashboard['snapshots']??[];$health=(new TripLiveIntelligenceService($this->pdo))->health($dashboard);$proactive=[];try{if(class_exists('ProactiveTravelService')){$service=new ProactiveTravelService($this->pdo);if($service->ready())$proactive=$service->issuesForTrip($userId,$tripId,6,true);}}catch(Throwable){}
+        $autonomy=null;try{if(class_exists('AutonomousTravelOperationsService')){$service=new AutonomousTravelOperationsService($this->pdo);if($service->ready())$autonomy=$service->fallback($userId,$tripId);}}catch(Throwable){}
+        return ['trip'=>$trip,'health'=>$health,'weather'=>$this->payload($snap,'weather'),'flights'=>$this->payload($snap,'flights'),'lodging'=>$this->payload($snap,'lodging'),'events'=>$this->payload($snap,'events'),'places'=>$this->payload($snap,'places'),'proactive'=>$proactive,'concierge'=>$concierge,'autonomy'=>$autonomy];
     }
 
     private function nearestTrip(int $userId): ?array
