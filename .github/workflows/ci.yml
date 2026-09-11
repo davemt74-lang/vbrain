@@ -70,6 +70,9 @@ jobs:
       - name: Check Trip Agent Jobs contract
         run: php tests/trip_agent_jobs_contract.php
 
+      - name: Check Trip Agent Batches contract
+        run: php tests/trip_agent_batches_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
@@ -95,8 +98,9 @@ jobs:
           test -f db/035_trip_intelligence.sql
           test -f db/036_travel_watches.sql
           test -f db/037_trip_agent_jobs.sql
+          test -f db/038_trip_agent_intelligence_batches.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 37
+          test "$COUNT" -eq 38
 
       - name: Validate WebP media
         shell: bash
@@ -148,6 +152,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripLiveIntelligenceService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripSupervisorService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentService.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentBatchService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentJobService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TravelWatchService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/VacationBrainActivityService.php'
@@ -178,6 +183,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'db/035_trip_intelligence.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/036_travel_watches.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/037_trip_agent_jobs.sql'
+          unzip -l vacation-brain-deploy.zip | grep -q 'db/038_trip_agent_intelligence_batches.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-trucker-hat.webp'

@@ -12,27 +12,31 @@ function vb_apply_agent_jobs_to_activity(array $activity,array $jobs): array
     $activity['jobs_available']=!empty($jobs['ready']);
     $activity['active_agent_jobs']=(int)($jobs['active_total']??0);
     $byAgent=is_array($jobs['by_agent']??null)?$jobs['by_agent']:[];
-    $hasRunning=false;$hasQueued=false;
+    $hasRunning=false;$hasPreparing=false;$hasQueued=false;
     foreach($activity['channels']??[] as &$channel){
         $key=(string)($channel['key']??'overview');$state=is_array($byAgent[$key]??null)?$byAgent[$key]:[];
-        $running=(int)($state['running']??0);$queued=(int)($state['queued']??0);$completed=(int)($state['completed']??0);$failed=(int)($state['failed']??0);
+        $running=(int)($state['running']??0);$queued=(int)($state['queued']??0);$completed=(int)($state['completed']??0);$failed=(int)($state['failed']??0);$batchStatus=(string)($state['batch_status']??'');$preparing=$queued>0&&in_array($batchStatus,['queued','refreshing'],true);
         $channel['metrics']=is_array($channel['metrics']??null)?$channel['metrics']:[];
         $channel['metrics']['running_jobs']=$running;$channel['metrics']['queued_jobs']=$queued;$channel['metrics']['completed_jobs_24h']=$completed;$channel['metrics']['failed_jobs_24h']=$failed;
-        $channel['job_state']=$running>0?'running':($queued>0?'queued':(string)($state['last_status']??'idle'));
+        $channel['job_state']=$running>0?'running':($preparing?'preparing':($queued>0?'queued':(string)($state['last_status']??'idle')));
         $channel['job_progress']=$running>0||$queued>0?(int)($state['last_progress']??0):null;
-        $channel['job_id']=$running>0||$queued>0?(int)($state['job_id']??0):null;
+        $channel['job_id']=$running>0||$queued>0?(int)($state['job_id']??0):null;$channel['batch_id']=!empty($state['batch_id'])?(int)$state['batch_id']:null;$channel['batch_status']=$batchStatus;
         if(($running>0||$queued>0)&&!empty($state['last_at']))$channel['last_activity']=(string)$state['last_at'];
         if($running>0){
-            $hasRunning=true;$channel['intensity']=max(92,(int)($channel['intensity']??0));$channel['state']='working';$channel['reason']='Agent is working now · current work phase '.(int)($state['last_progress']??0).'%. ';
+            $hasRunning=true;$channel['intensity']=max(92,(int)($channel['intensity']??0));$channel['state']='working';$channel['reason']='Agent is working now from one shared trip-intelligence snapshot · current work phase '.(int)($state['last_progress']??0).'%. ';
             if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(95,(int)$channel['series'][$last]);}
+        }elseif($preparing){
+            $hasPreparing=true;$channel['intensity']=max(64,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']='Vacation Brain is preparing one coherent provider snapshot for this agent batch.';
+            if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(64,(int)$channel['series'][$last]);}
         }elseif($queued>0){
-            $hasQueued=true;$channel['intensity']=max(58,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']='Agent task is queued and waiting for the background worker.';
+            $hasQueued=true;$channel['intensity']=max(58,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']='Shared intelligence is ready; this agent is queued for analysis.';
             if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(58,(int)$channel['series'][$last]);}
         }
     }
     unset($channel);
-    if(($activity['series']??[])&&($hasRunning||$hasQueued)){$last=count($activity['series'])-1;$activity['series'][$last]=max($hasRunning?88:55,(int)$activity['series'][$last]);}
+    if(($activity['series']??[])&&($hasRunning||$hasPreparing||$hasQueued)){$last=count($activity['series'])-1;$activity['series'][$last]=max($hasRunning?88:($hasPreparing?62:55),(int)$activity['series'][$last]);}
     if($hasRunning){$activity['score']=max(78,(int)($activity['score']??0));$activity['status']='Agents Working';}
+    elseif($hasPreparing){$activity['score']=max(60,(int)($activity['score']??0));$activity['status']='Refreshing Trip Intelligence';}
     elseif($hasQueued){$activity['score']=max(52,(int)($activity['score']??0));$activity['status']='Agents Queued';}
     return $activity;
 }
