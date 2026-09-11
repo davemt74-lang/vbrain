@@ -4,8 +4,8 @@ declare(strict_types=1);
 /**
  * Gives the main Vacation Brain agent read-only context from the nearest active
  * trip's already-saved intelligence snapshots plus the persisted proactive issue
- * ledger. It never refreshes a provider and never includes booking confirmation
- * codes, booking notes, payment data, or private Trip Memory notes.
+ * ledger. It never refreshes a provider and never includes booking confirmation codes,
+ * booking notes, payment data, or private Trip Memory notes.
  */
 final class LiveTravelAgentContextService
 {
