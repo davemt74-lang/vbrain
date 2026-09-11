@@ -68,7 +68,9 @@ final class VacationAgentService
                 if(class_exists('TravelerMemoryGraphService')){$graph=new TravelerMemoryGraphService($this->pdo);if($graph->ready())$memoryContext=$graph->agentContext($userId,5);}
                 if($memoryContext===''&&class_exists('TripMemoryService')){$memory=new TripMemoryService($this->pdo);if($memory->ready())$memoryContext=$memory->agentContext($userId);}
             }catch(Throwable){}
-            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. When Traveler Memory is present, distinguish diagnosis guesses from preferences supported by completed trips, honor ignored learning signals, and never infer private trip notes. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($memoryContext!==''?"\n\n".$memoryContext:'').($researchContext!==''?"\n\n".$researchContext:'').$dashboardContext;
+            $liveTripContext='';
+            try{if(class_exists('LiveTravelAgentContextService'))$liveTripContext=(new LiveTravelAgentContextService($this->pdo))->context($userId);}catch(Throwable){}
+            $system='You are Vacation Brain, a playful sarcastic vacation-daydreaming concierge. Be funny, useful, concise, and never present Vacation Brain as medical or mental-health care. The user\'s current Vacation Brain archetype is '.($profile['archetype']['name']??'Unknown').'. Strong travel signals: '.$traitText.'. Use these signals naturally when relevant. When Traveler Memory is present, distinguish diagnosis guesses from preferences supported by completed trips, honor ignored learning signals, and never infer private trip notes. When LIVE TRIP CONTEXT is present, it contains only previously saved provider snapshots: do not claim you refreshed a provider during this chat. Respect freshness labels. Treat Aviationstack booked-flight status as operational information that can still change; treat Skyscanner airfare as indicative only; treat Booking.com lodging results as search availability, not confirmed reservations. Never infer or request booking confirmation codes from live-provider context. Do not reveal hidden scoring mechanics or claim certainty about preferences. Vacation Yourself image actions are handled by a separate controlled application action layer. Never claim you generated, remixed, shared, favorited, or changed an image unless the application has actually done so.'.($memoryContext!==''?"\n\n".$memoryContext:'').($liveTripContext!==''?"\n\n".$liveTripContext:'').($researchContext!==''?"\n\n".$researchContext:'').$dashboardContext;
             return (new AiProviderService($this->pdo))->generateText($system,$message,$userId,'agent_chat',450);
         }catch(Throwable){return null;}
     }
@@ -80,6 +82,9 @@ final class VacationAgentService
         $selected=[];try{$selected=(new DashboardDestinationContextService($this->pdo))->names($userId);}catch(Throwable){}
         if($selected && (str_contains($q,'compare')||str_contains($q,'selected')||str_contains($q,'locations'))){
             return 'Your selected destination context is '.implode(', ',$selected).'. The AI provider is unavailable right now, so I can keep those places selected but I cannot produce a reliable live comparison until the configured agent model responds.';
+        }
+        if($this->isLiveTripQuestion($q)){
+            try{$live=(new LiveTravelAgentContextService($this->pdo))->fallbackSummary($userId);if($live){$answer=$this->liveFallback($q,$live);if($answer!=='')return $answer;}}catch(Throwable){}
         }
         if(str_contains($q,'roast'))return $profile['roasts'][0]??'You have successfully outsourced being judged for wanting a vacation.';
         if(str_contains($q,'learned')||str_contains($q,'know about me')||str_contains($q,'travel history')||str_contains($q,'last trip')||str_contains($q,'liked about')){
@@ -103,5 +108,20 @@ final class VacationAgentService
         }
         if(str_contains($q,'break')||str_contains($q,'escape'))return 'I recommend the Escape tab. Your options include a tiny Vacation Break, a local Vacation Substitution, Weather Envy, or letting me help fabricate an out-of-office message.';
         $comment=(new FunContentService($this->pdo))->random('agent_comment',$userId);return $comment?(string)$comment['body']:'I have reviewed the situation and recommend continued vacation-related procrastination.';
+    }
+
+    private function isLiveTripQuestion(string $q): bool
+    {
+        foreach(['flight status','my flight','gate','delay','weather for my trip','weather on my trip','hotel price','lodging','hotel availability','what is happening near','events on my trip','trip weather'] as $needle)if(str_contains($q,$needle))return true;return false;
+    }
+
+    private function liveFallback(string $q,array $live): string
+    {
+        $trip=$live['trip']??[];$tripName=(string)($trip['name']??'your trip');
+        if(str_contains($q,'flight')||str_contains($q,'gate')||str_contains($q,'delay')){$f=$live['flights']??[];$statuses=(array)($f['booked_statuses']??[]);if($statuses){$row=$statuses[0];$dep=(array)($row['departure']??[]);$bits=[(string)($row['flight_number']??'Flight'),ucwords(str_replace('_',' ',(string)($row['status']??'unknown')))];if(!empty($dep['gate']))$bits[]='gate '.$dep['gate'];if(isset($dep['delay'])&&$dep['delay']!==null)$bits[]=(int)$dep['delay'].'m delay';return $tripName.': '.implode(' · ',$bits).'. Snapshot '.(string)($live['health']['flights']['freshness']??'age unknown').'; confirm critical gate/terminal details with the airline.';}if(!empty($f['ok'])&&isset($f['min_price']))return $tripName.' has indicative airfare from '.(string)($f['currency']??'USD').' '.number_format((float)$f['min_price'],0).'. That is planning data, not a confirmed or guaranteed bookable fare.';return 'I do not have a successful saved flight snapshot for '.$tripName.' yet. Open the trip dashboard and refresh Flights.';}
+        if(str_contains($q,'weather')){$w=$live['weather']??[];$d=$w['days'][0]??null;if(is_array($d)){return $tripName.' weather snapshot: '.(isset($d['high'])?round((float)$d['high']).'° high, ':'').(isset($d['precip_probability'])?round((float)$d['precip_probability']).'% rain, ':'').(string)($d['conditions']??'conditions unavailable').'. Snapshot '.(string)($live['health']['weather']['freshness']??'age unknown').'.';}return 'I do not have a successful saved weather snapshot for '.$tripName.' yet. Open the trip dashboard and refresh Weather.';}
+        if(str_contains($q,'hotel')||str_contains($q,'lodging')){$l=$live['lodging']??[];if(!empty($l['ok']))return $tripName.' lodging snapshot has '.count((array)($l['items']??[])).' current results'.(isset($l['min_price'])?', from '.(string)($l['currency']??'USD').' '.number_format((float)$l['min_price'],0):'').'. This is search availability, not a confirmed reservation. Snapshot '.(string)($live['health']['lodging']['freshness']??'age unknown').'.';return 'I do not have a successful saved lodging snapshot for '.$tripName.' yet. Open Live Lodging from the trip dashboard and refresh it.';}
+        if(str_contains($q,'event')||str_contains($q,'happening near')){$e=$live['events']??[];if(!empty($e['items'])){$first=$e['items'][0];return $tripName.' currently has '.count((array)$e['items']).' matching event results. One of the first is '.(string)($first['name']??'an event').(!empty($first['date'])?' on '.(string)$first['date']:'').'. Snapshot '.(string)($live['health']['events']['freshness']??'age unknown').'.';}return 'I do not have a successful saved events snapshot for '.$tripName.' yet. Open the trip dashboard and refresh Events.';}
+        return '';
     }
 }

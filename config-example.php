@@ -15,13 +15,8 @@ return [
     'app' => [
         // No trailing slash. For the live site use: https://vacationbrain.com
         'base_url' => 'https://vacationbrain.com',
-
-        // Use a valid PHP timezone identifier.
         'timezone' => 'America/Phoenix',
-
-        // Browser session cookie name for this installation.
         'session_name' => 'vacation_brain_session',
-
         // Replace with a long, random secret and then keep it unchanged.
         // Example generator: php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
         'internal_key' => 'CHANGE_ME_TO_A_LONG_RANDOM_SECRET',
@@ -38,14 +33,16 @@ return [
 
     /*
      * Optional live travel-intelligence providers.
-     * Keys remain server-side and are never rendered into the browser.
-     * Environment variables with the names shown below are also supported.
+     * Admin > Travel Providers can securely store encrypted credentials after
+     * migration 046. These config/environment values remain a server-side
+     * fallback for existing installations and are never rendered to browsers.
      *
-     * Visual Crossing: global forecast + historical weather. Its current free
-     * tier supports commercial use within the provider's quota.
+     * Visual Crossing: global forecast + historical weather.
      * Ticketmaster: local live events via Discovery API.
-     * Google Places: restaurants, bars, attractions and other local businesses.
-     * Skyscanner: flight autosuggest + indicative airfare for approved partners.
+     * Google Places: restaurants, bars, attractions and local businesses.
+     * Skyscanner: approved-partner indicative airfare intelligence.
+     * Aviationstack: operational status for flights users record as booked.
+     * Booking.com Demand API: live lodging search/look/redirect inventory.
      *
      * U.S. weather automatically falls back to api.weather.gov when destination
      * coordinates are available, even without a Visual Crossing key.
@@ -55,6 +52,12 @@ return [
         'ticketmaster_key' => '',    // or TICKETMASTER_API_KEY
         'google_places_key' => '',   // or GOOGLE_PLACES_API_KEY
         'skyscanner_key' => '',      // or SKYSCANNER_API_KEY
+        'aviationstack_key' => '',   // or AVIATIONSTACK_API_KEY
+        'booking_com_token' => '',   // or BOOKING_COM_API_TOKEN
+        'booking_com_affiliate_id' => '',
+        'booking_com_booker_country' => 'us',
+        'booking_com_platform' => 'desktop',
+        'booking_com_environment' => 'production', // production | sandbox
         'market' => 'US',
         'locale' => 'en-US',
         'currency' => 'USD',
