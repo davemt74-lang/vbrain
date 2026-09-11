@@ -109,6 +109,9 @@ jobs:
       - name: Check Collaborative Trips & Travelers contract
         run: php tests/collaborative_trips_contract.php
 
+      - name: Check Destination & Local Concierge contract
+        run: php tests/local_concierge_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
@@ -127,6 +130,7 @@ jobs:
           node --check assets/travel-mode.js
           node --check assets/travel-mode-offline.js
           node --check assets/live-travel-data.js
+          node --check assets/local-concierge.js
 
       - name: Verify ordered migrations
         shell: bash
@@ -151,8 +155,9 @@ jobs:
           test -f db/047_proactive_vacation_brain.sql
           test -f db/048_booking_action_execution.sql
           test -f db/049_collaborative_trips.sql
+          test -f db/050_local_concierge.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 49
+          test "$COUNT" -eq 50
 
       - name: Validate WebP media
         shell: bash
@@ -199,6 +204,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-collaboration.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-invite.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'shared-trip.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'local-concierge.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-lodging.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'flight-tracking.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'travel-mode.php'
@@ -226,6 +232,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/BookingActionAgentContextService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripCollaborationService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripCollaborationAgentContextService.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/LocalConciergeService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripIntelligenceService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripLiveIntelligenceService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripSupervisorService.php'
@@ -266,6 +273,8 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-intelligence.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/live-travel-data.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/live-travel-data.js'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/local-concierge.css'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/local-concierge.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-providers.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-watches.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-watches.js'
@@ -309,6 +318,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'db/047_proactive_vacation_brain.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/048_booking_action_execution.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/049_collaborative_trips.sql'
+          unzip -l vacation-brain-deploy.zip | grep -q 'db/050_local_concierge.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-trucker-hat.webp'
