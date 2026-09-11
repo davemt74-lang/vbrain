@@ -48,6 +48,7 @@ require __DIR__.'/partials/header.php';
       <?php foreach($views as $key=>$label):$count=$key==='trips'?count($activeTrips):($key==='agents'&&$activeView==='agents'?$activeAgentCount:null);?>
         <a class="<?=$activeView===$key?'active':''?>" href="<?=e(app_url('dream.php?view='.$key))?>" aria-current="<?=$activeView===$key?'page':'false'?>"><span><?=e($label)?></span><?php if($count!==null):?><b><?=$count?></b><?php endif;?></a>
       <?php endforeach;?>
+      <a href="<?=e(app_url('booking-inbox.php'))?>"><span>Booking Inbox</span></a>
     </nav>
     <a class="button primary vb-plan-hub-add-trip" href="<?=e(app_url('dream-new.php'))?>">+ Add Trip</a>
   </div>
