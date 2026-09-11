@@ -15,6 +15,7 @@
 <?php require __DIR__.'/shell-actions.php'; ?>
 <script src="<?=e(app_url('assets/app.js'))?>"></script>
 <script src="<?=e(app_url('assets/shell-commerce.js'))?>"></script>
+<?php if($footerUser && $footerPage==='local-concierge.php'):?><script src="<?=e(app_url('assets/local-concierge.js'))?>"></script><?php endif;?>
 <?php if($footerUser):?>
 <script type="application/json" data-vb-watch-config><?=json_encode([
     'csrf'=>csrf_token(),

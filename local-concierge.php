@@ -1,0 +1,56 @@
+<?php
+require __DIR__.'/app/bootstrap.php';
+$userId=require_auth();$pdo=db();$service=new LocalConciergeService($pdo);$tripId=(int)($_GET['id']??$_POST['trip_id']??0);$error='';
+if(!$service->ready()){http_response_code(503);exit('Run System Upgrade to enable Destination & Local Concierge.');}
+try{$access=$service->access($userId,$tripId);}catch(Throwable){http_response_code(404);exit('Trip not found.');}
+
+if($_SERVER['REQUEST_METHOD']==='POST'){
+    verify_csrf();
+    try{
+        $command=strtolower(trim((string)($_POST['command']??'')));
+        if($command==='refresh'){
+            $run=$service->refresh($userId,$tripId,$_POST);flash('success','Local Concierge refreshed public weather, places and event suggestions.');redirect('local-concierge.php?id='.$tripId.'&run='.(int)$run['id']);
+        }elseif($command==='add'){
+            $service->addSuggestion($userId,$tripId,(int)($_POST['run_id']??0),(string)($_POST['suggestion_key']??''),(string)($_POST['scheduled_date']??''),(string)($_POST['daypart']??''));flash('success','Added to the trip itinerary.');redirect('local-concierge.php?id='.$tripId.'&run='.(int)($_POST['run_id']??0));
+        }elseif($command==='dismiss'){
+            $service->dismissSuggestion($userId,$tripId,(int)($_POST['run_id']??0),(string)($_POST['suggestion_key']??''));flash('success','Suggestion dismissed from this concierge refresh.');redirect('local-concierge.php?id='.$tripId.'&run='.(int)($_POST['run_id']??0));
+        }else throw new InvalidArgumentException('Unknown concierge action.');
+    }catch(Throwable $e){$error=$e->getMessage();}
+}
+$runId=(int)($_GET['run']??0);$run=$runId>0?$service->run($userId,$tripId,$runId):$service->latest($userId,$tripId);$tripName='Trip';$destination='';
+try{$collab=new TripCollaborationService($pdo);$snap=$collab->snapshot($userId,$tripId);$tripName=(string)($snap['trip']['name']??'Trip');$destination=(string)($snap['trip']['destination_name']??'');}catch(Throwable){}
+$success=flash('success');$pageStyles=['assets/local-concierge.css'];$pageScripts=['assets/local-concierge.js'];$title='Local Concierge — '.$tripName;require __DIR__.'/partials/header.php';
+$windowLabels=['now'=>'Right now','next_4_hours'=>'Next few hours','tonight'=>'Tonight','today'=>'Today','tomorrow'=>'Tomorrow'];$interestLabels=['food'=>'Food','drinks'=>'Drinks','outdoors'=>'Outdoors','culture'=>'Culture','events'=>'Events','nightlife'=>'Nightlife','family'=>'Family-friendly'];
+?>
+<section class="dashboard vb-local-concierge" data-local-concierge-root><div class="shell">
+  <header class="vb-lc-head"><div><a class="back-link" href="<?=e(app_url(!empty($access['is_owner'])?'dream-trip.php?id='.$tripId.'&tab=local':'shared-trip.php?id='.$tripId))?>">← Back to trip</a><div class="eyebrow">Destination & Local Concierge</div><h1>What should we do around here?</h1><p><?=e($tripName)?> · <?=e($destination?:'Destination TBD')?> · <?=e(ucwords(str_replace('_',' ',(string)$access['role'])))?> access</p></div><?php if(!empty($access['is_owner'])):?><a class="button secondary" href="<?=e(app_url('travel-mode.php?id='.$tripId))?>">Travel Mode</a><?php endif;?></header>
+  <?php if($success):?><div class="alert success"><?=e($success)?></div><?php endif;?><?php if($error):?><div class="alert error"><?=e($error)?></div><?php endif;?>
+
+  <section class="dashboard-card vb-lc-control-card">
+    <div class="vb-lc-control-copy"><span class="eyebrow">One refresh, one context</span><h2>Use the destination—or your location once.</h2><p>Device coordinates are used only for this provider request and are not saved to the database, agent context, collaboration history, or trip record.</p></div>
+    <form method="post" class="vb-lc-form" data-local-concierge-form>
+      <input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="trip_id" value="<?=$tripId?>"><input type="hidden" name="command" value="refresh"><input type="hidden" name="anchor_mode" value="destination" data-anchor-mode><input type="hidden" name="latitude" value="" data-latitude><input type="hidden" name="longitude" value="" data-longitude>
+      <div class="vb-lc-form-row"><label>When<select class="input" name="window"><?php foreach($windowLabels as $value=>$label):?><option value="<?=$value?>" <?=($run&&($run['concierge_window']??'')===$value)?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></label><div class="vb-lc-anchor-actions"><button class="button primary" type="submit" data-destination-refresh>Use trip destination</button><button class="button secondary" type="button" data-use-location>Use my location once</button></div></div>
+      <fieldset class="vb-lc-interests"><legend>What sounds good?</legend><?php $selected=(array)($run['interests']??['food','outdoors','culture','events']);foreach($interestLabels as $value=>$label):?><label><input type="checkbox" name="interests[]" value="<?=$value?>" <?=in_array($value,$selected,true)?'checked':''?>> <?=e($label)?></label><?php endforeach;?></fieldset>
+      <div class="vb-lc-location-status" data-location-status aria-live="polite"></div>
+    </form>
+  </section>
+
+  <?php if($run):?>
+  <section class="vb-lc-summary">
+    <article class="dashboard-card"><span>Anchor</span><strong><?=e((string)$run['anchor_label'])?></strong><small><?=($run['anchor_mode']??'destination')==='device'?'Device location used once; coordinates not stored':'Trip destination coordinates'?></small></article>
+    <article class="dashboard-card"><span>Window</span><strong><?=e($windowLabels[(string)$run['concierge_window']]??'Now')?></strong><small><?=e(date('M j · g:i A',strtotime((string)$run['observed_at'])))?> snapshot</small></article>
+    <article class="dashboard-card"><span>Weather</span><strong><?=e((string)($run['weather']['conditions']??'Unavailable'))?></strong><small><?php if(($run['weather']['high']??null)!==null):?>High <?=e((string)round((float)$run['weather']['high']))?>°<?php endif;?><?php if(($run['weather']['precip_probability']??null)!==null):?> · <?=e((string)round((float)$run['weather']['precip_probability']))?>% rain<?php endif;?></small></article>
+    <article class="dashboard-card"><span>Suggestions</span><strong><?=count(array_filter((array)$run['suggestions'],fn($s)=>empty($s['dismissed'])))?></strong><small><?=$run['expired']?'Refresh recommended':'Current saved concierge run'?></small></article>
+  </section>
+
+  <div class="vb-lc-layout">
+    <main class="dashboard-card vb-lc-results"><div class="vb-lc-section-head"><div><span class="eyebrow">Ranked local options</span><h2><?=e($windowLabels[(string)$run['concierge_window']]??'Now')?> around <?=e((string)$run['anchor_label'])?></h2></div><span class="vb-lc-live-state <?=$run['expired']?'stale':'fresh'?>"><?=$run['expired']?'Saved / stale':'Saved snapshot'?></span></div>
+      <?php $visible=array_values(array_filter((array)$run['suggestions'],fn($s)=>empty($s['dismissed'])));if($visible):?><div class="vb-lc-list"><?php foreach($visible as $suggestion):?><article class="vb-lc-card <?=$suggestion['added']?'is-added':''?>"><div class="vb-lc-score"><strong><?=(int)$suggestion['score']?></strong><span>match</span></div><div class="vb-lc-card-copy"><div class="vb-lc-card-top"><span class="vb-lc-category"><?=e(ucfirst((string)$suggestion['category']))?></span><span><?=e((string)$suggestion['provider'])?></span></div><h3><?=e((string)$suggestion['title'])?></h3><p><?=e((string)$suggestion['reason'])?></p><?php if(!empty($suggestion['address'])):?><small><?=e((string)$suggestion['address'])?></small><?php endif;?><div class="vb-lc-facts"><?php if(($suggestion['rating']??null)!==null):?><span><?=number_format((float)$suggestion['rating'],1)?>★<?php if((int)($suggestion['review_count']??0)>0):?> · <?=number_format((int)$suggestion['review_count'])?> reviews<?php endif;?></span><?php endif;?><?php if(!empty($suggestion['date'])):?><span><?=e(date('D M j',strtotime((string)$suggestion['date'])))?><?=!empty($suggestion['time'])?' · '.e((string)$suggestion['time']):''?></span><?php endif;?><?php if(($suggestion['price']??null)!==null):?><span>From $<?=number_format((float)$suggestion['price'],0)?></span><?php endif;?></div></div><div class="vb-lc-card-actions"><?php if(!empty($suggestion['url'])):?><a class="button secondary small" target="_blank" rel="noopener noreferrer" href="<?=e((string)$suggestion['url'])?>">Open source</a><?php endif;?><?php if(!empty($access['can_add'])&&!$suggestion['added']):?><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="trip_id" value="<?=$tripId?>"><input type="hidden" name="command" value="add"><input type="hidden" name="run_id" value="<?=(int)$run['id']?>"><input type="hidden" name="suggestion_key" value="<?=e((string)$suggestion['key'])?>"><button class="button primary small" type="submit">Add to itinerary</button></form><?php elseif($suggestion['added']):?><span class="vb-lc-added">Added ✓</span><?php endif;?><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="trip_id" value="<?=$tripId?>"><input type="hidden" name="command" value="dismiss"><input type="hidden" name="run_id" value="<?=(int)$run['id']?>"><input type="hidden" name="suggestion_key" value="<?=e((string)$suggestion['key'])?>"><button class="vb-lc-dismiss" type="submit">Dismiss</button></form></div></article><?php endforeach;?></div><?php else:?><div class="trip-empty-state"><strong>No local suggestions survived this refresh.</strong><p>Try another window, interest mix, or explicitly share your current location once.</p></div><?php endif;?>
+    </main>
+
+    <aside class="vb-lc-side"><article class="dashboard-card"><span class="eyebrow">Provider health</span><h2>What is live?</h2><div class="vb-lc-health"><?php foreach(['places'=>'Places','events'=>'Events','weather'=>'Weather'] as $key=>$label):$health=$run['provider_health'][$key]??[];?><div><span class="vb-lc-dot <?=!empty($health['ok'])?'ok':'off'?>"></span><strong><?=e($label)?></strong><small><?=e((string)($health['provider']??'Unavailable'))?></small><?php if(empty($health['ok'])&&!empty($health['error'])):?><p><?=e((string)$health['error'])?></p><?php endif;?></div><?php endforeach;?></div></article><article class="dashboard-card"><span class="eyebrow">Permission boundary</span><h2><?=e(ucwords(str_replace('_',' ',(string)$access['role'])))?></h2><p><?php if(!empty($access['can_add'])):?>You can add a concierge suggestion to the trip itinerary. Adding is a trip mutation; provider reservations still use Booking & Action Execution.<?php else:?>You can browse and dismiss your own concierge suggestions, but your role cannot change the shared itinerary.<?php endif;?></p><p class="muted">Concierge results are suggestions, not reservations. Verify hours, inventory, tickets and critical details at the linked provider.</p></article></aside>
+  </div>
+  <?php else:?><article class="dashboard-card vb-lc-empty"><div class="eyebrow">Concierge is ready</div><h2>Pick a window and refresh.</h2><p>Vacation Brain will combine configured public travel providers with existing saved destination research. No provider call happens merely because you opened this page.</p></article><?php endif;?>
+</div></section>
+<?php require __DIR__.'/partials/footer.php';?>
