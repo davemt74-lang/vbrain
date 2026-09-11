@@ -35,7 +35,7 @@ final class LocalConciergeService
 
     public function refresh(int $userId,int $tripId,array $input): array
     {
-        $this->requireReady();$access=$this->access($userId,$tripId);$trip=$this->trip($tripId);
+        $this->requireReady();$this->access($userId,$tripId);$trip=$this->trip($tripId);
         $window=$this->window((string)($input['window']??'now'));$interests=$this->interests($input['interests']??[]);
         $mode=strtolower(trim((string)($input['anchor_mode']??'destination')))==='device'?'device':'destination';
         $lat=$this->floatOrNull($input['latitude']??null);$lng=$this->floatOrNull($input['longitude']??null);
@@ -88,17 +88,23 @@ final class LocalConciergeService
     public function addSuggestion(int $userId,int $tripId,int $runId,string $suggestionKey,?string $date=null,?string $daypart=null): int
     {
         $this->requireReady();$access=$this->access($userId,$tripId);if(empty($access['can_add']))throw new DomainException('Only the trip owner or a Co-planner can add concierge suggestions to the shared itinerary.');
-        $run=$this->run($userId,$tripId,$runId);if(!$run)throw new OutOfBoundsException('Concierge refresh not found.');$suggestion=$this->findSuggestion($run,$suggestionKey);
-        if(!$suggestion)throw new OutOfBoundsException('That concierge suggestion is no longer in this refresh.');
-        if($this->hasAction($runId,$userId,$suggestionKey,'added'))throw new DomainException('That suggestion is already on the itinerary from this refresh.');
-        $date=$this->dateOrNull($date)??$this->dateOrNull((string)($suggestion['date']??''));$daypart=$this->daypart($daypart)??$this->defaultDaypart((string)$run['concierge_window']);
-        $notes=$this->clip(implode(' · ',array_filter([(string)($suggestion['reason']??''),(string)($suggestion['address']??''),(string)($suggestion['provider']??''),(string)($suggestion['url']??'')])),1000);
-        $itemType=$this->itemType((string)($suggestion['category']??''),(string)($suggestion['kind']??''));
-        $price=isset($suggestion['price'])&&is_numeric($suggestion['price'])?max(0,(float)$suggestion['price']):null;
-        $collab=new TripCollaborationService($this->pdo);
-        $itemId=$collab->addItem($userId,$tripId,['item_type'=>$itemType,'title'=>(string)$suggestion['title'],'price'=>$price,'notes'=>$notes,'scheduled_date'=>$date,'daypart'=>$daypart]);
-        $this->recordAction($runId,$userId,$tripId,$suggestionKey,'added',$itemId);
-        return $itemId;
+        $this->pdo->beginTransaction();
+        try{
+            // Lock the saved run so duplicate fast submissions serialize before an itinerary row is created.
+            $lock=$this->pdo->prepare('SELECT id FROM trip_local_concierge_runs WHERE id=? AND user_id=? AND dream_trip_id=? LIMIT 1 FOR UPDATE');$lock->execute([$runId,$userId,$tripId]);if(!$lock->fetchColumn())throw new OutOfBoundsException('Concierge refresh not found.');
+            $run=$this->run($userId,$tripId,$runId);if(!$run)throw new OutOfBoundsException('Concierge refresh not found.');$suggestion=$this->findSuggestion($run,$suggestionKey);
+            if(!$suggestion)throw new OutOfBoundsException('That concierge suggestion is no longer in this refresh.');
+            if(!empty($suggestion['dismissed']))throw new DomainException('That concierge suggestion was dismissed from this refresh. Refresh or choose another suggestion.');
+            if(!empty($suggestion['added'])||$this->hasAction($runId,$userId,$suggestionKey,'added'))throw new DomainException('That suggestion is already on the itinerary from this refresh.');
+            $date=$this->dateOrNull($date)??$this->dateOrNull((string)($suggestion['date']??''));$daypart=$this->daypart($daypart)??$this->defaultDaypart((string)$run['concierge_window']);
+            $notes=$this->clip(implode(' · ',array_filter([(string)($suggestion['reason']??''),(string)($suggestion['address']??''),(string)($suggestion['provider']??''),(string)($suggestion['url']??'')])),1000);
+            $itemType=$this->itemType((string)($suggestion['category']??''),(string)($suggestion['kind']??''));
+            $price=isset($suggestion['price'])&&is_numeric($suggestion['price'])?max(0,(float)$suggestion['price']):null;
+            $collab=new TripCollaborationService($this->pdo);
+            $itemId=$collab->addItem($userId,$tripId,['item_type'=>$itemType,'title'=>(string)$suggestion['title'],'price'=>$price,'notes'=>$notes,'scheduled_date'=>$date,'daypart'=>$daypart]);
+            $this->recordAction($runId,$userId,$tripId,$suggestionKey,'added',$itemId);
+            $this->pdo->commit();return $itemId;
+        }catch(Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
     }
 
     public function dismissSuggestion(int $userId,int $tripId,int $runId,string $suggestionKey): void
@@ -197,7 +203,7 @@ final class LocalConciergeService
     private function itemType(string $category,string $kind): string{if($category==='food')return 'food';if(in_array($category,['drinks','nightlife','events'],true)||$kind==='event')return 'experience';return 'activity';}
     private function defaultDaypart(string $window): string{return match($window){'tonight'=>'evening','now','next_4_hours'=>'anytime',default=>'anytime'};}
     private function windowTargetDate(string $window): string{return $window==='tomorrow'?date('Y-m-d',strtotime('+1 day')):date('Y-m-d');}
-    private function windowDates(string $window): array{$start=$this->windowTargetDate($window);$end=$window==='next_4_hours'||$window==='now'||$window==='tonight'||$window==='today'?$start:$start;return [$start,$end];}
+    private function windowDates(string $window): array{$start=$this->windowTargetDate($window);return [$start,$start];}
     private function window(string $v): string{$v=strtolower(trim($v));return in_array($v,self::WINDOWS,true)?$v:'now';}
     private function interests(mixed $value): array{$values=is_array($value)?$value:explode(',',(string)$value);$out=[];foreach($values as $v){$v=strtolower(trim((string)$v));if(in_array($v,self::INTERESTS,true))$out[$v]=1;}return array_keys($out?:array_fill_keys(['food','outdoors','culture','events'],1));}
     private function daypart(?string $v): ?string{$v=strtolower(trim((string)$v));return in_array($v,['morning','afternoon','evening','anytime'],true)?$v:null;}
