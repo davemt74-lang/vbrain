@@ -9,61 +9,31 @@ $tripId=(int)($_GET['trip_id']??0);
 
 function vb_apply_agent_jobs_to_activity(array $activity,array $jobs): array
 {
-    $activity['jobs_available']=!empty($jobs['ready']);
-    $activity['active_agent_jobs']=(int)($jobs['active_total']??0);
-    $byAgent=is_array($jobs['by_agent']??null)?$jobs['by_agent']:[];
-    $hasRunning=false;$hasPreparing=false;$hasQueued=false;
-    foreach($activity['channels']??[] as &$channel){
-        $key=(string)($channel['key']??'overview');$state=is_array($byAgent[$key]??null)?$byAgent[$key]:[];
-        $running=(int)($state['running']??0);$queued=(int)($state['queued']??0);$completed=(int)($state['completed']??0);$failed=(int)($state['failed']??0);$batchStatus=(string)($state['batch_status']??'');$preparing=$queued>0&&in_array($batchStatus,['queued','refreshing'],true);
-        $channel['metrics']=is_array($channel['metrics']??null)?$channel['metrics']:[];
-        $channel['metrics']['running_jobs']=$running;$channel['metrics']['queued_jobs']=$queued;$channel['metrics']['completed_jobs_24h']=$completed;$channel['metrics']['failed_jobs_24h']=$failed;
-        $channel['job_state']=$running>0?'running':($preparing?'preparing':($queued>0?'queued':(string)($state['last_status']??'idle')));
-        $channel['job_progress']=$running>0||$queued>0?(int)($state['last_progress']??0):null;
-        $channel['job_id']=$running>0||$queued>0?(int)($state['job_id']??0):null;$channel['batch_id']=!empty($state['batch_id'])?(int)$state['batch_id']:null;$channel['batch_status']=$batchStatus;
-        if(($running>0||$queued>0)&&!empty($state['last_at']))$channel['last_activity']=(string)$state['last_at'];
-        if($running>0){
-            $hasRunning=true;$channel['intensity']=max(92,(int)($channel['intensity']??0));$channel['state']='working';$channel['reason']='Agent is working now from one shared trip-intelligence snapshot · current work phase '.(int)($state['last_progress']??0).'%. ';
-            if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(95,(int)$channel['series'][$last]);}
-        }elseif($preparing){
-            $hasPreparing=true;$channel['intensity']=max(64,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']='Vacation Brain is preparing one coherent provider snapshot for this agent batch.';
-            if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(64,(int)$channel['series'][$last]);}
-        }elseif($queued>0){
-            $hasQueued=true;$channel['intensity']=max(58,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']='Shared intelligence is ready; this agent is queued for analysis.';
-            if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(58,(int)$channel['series'][$last]);}
-        }
-    }
-    unset($channel);
-    if(($activity['series']??[])&&($hasRunning||$hasPreparing||$hasQueued)){$last=count($activity['series'])-1;$activity['series'][$last]=max($hasRunning?88:($hasPreparing?62:55),(int)$activity['series'][$last]);}
-    if($hasRunning){$activity['score']=max(78,(int)($activity['score']??0));$activity['status']='Agents Working';}
-    elseif($hasPreparing){$activity['score']=max(60,(int)($activity['score']??0));$activity['status']='Refreshing Trip Intelligence';}
-    elseif($hasQueued){$activity['score']=max(52,(int)($activity['score']??0));$activity['status']='Agents Queued';}
-    return $activity;
+    $activity['jobs_available']=!empty($jobs['ready']);$activity['active_agent_jobs']=(int)($jobs['active_total']??0);$byAgent=is_array($jobs['by_agent']??null)?$jobs['by_agent']:[];$hasRunning=false;$hasPreparing=false;$hasQueued=false;
+    foreach($activity['channels']??[] as &$channel){$key=(string)($channel['key']??'overview');$state=is_array($byAgent[$key]??null)?$byAgent[$key]:[];$running=(int)($state['running']??0);$queued=(int)($state['queued']??0);$completed=(int)($state['completed']??0);$failed=(int)($state['failed']??0);$batchStatus=(string)($state['batch_status']??'');$preparing=$queued>0&&in_array($batchStatus,['queued','refreshing'],true);$channel['metrics']=is_array($channel['metrics']??null)?$channel['metrics']:[];$channel['metrics']['running_jobs']=$running;$channel['metrics']['queued_jobs']=$queued;$channel['metrics']['completed_jobs_24h']=$completed;$channel['metrics']['failed_jobs_24h']=$failed;$channel['job_state']=$running>0?'running':($preparing?'preparing':($queued>0?'queued':(string)($state['last_status']??'idle')));$channel['job_progress']=$running>0||$queued>0?(int)($state['last_progress']??0):null;$channel['job_id']=$running>0||$queued>0?(int)($state['job_id']??0):null;$channel['batch_id']=!empty($state['batch_id'])?(int)$state['batch_id']:null;$channel['batch_status']=$batchStatus;if(($running>0||$queued>0)&&!empty($state['last_at']))$channel['last_activity']=(string)$state['last_at'];
+        if($running>0){$hasRunning=true;$channel['intensity']=max(92,(int)($channel['intensity']??0));$channel['state']='working';$channel['reason']='Agent is working now from one shared trip-intelligence snapshot · current work phase '.(int)($state['last_progress']??0).'%. ';if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(95,(int)$channel['series'][$last]);}}
+        elseif($preparing){$hasPreparing=true;$channel['intensity']=max(64,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']='Vacation Brain is preparing one coherent provider snapshot for this agent batch.';if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(64,(int)$channel['series'][$last]);}}
+        elseif($queued>0){$hasQueued=true;$channel['intensity']=max(58,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']='Shared intelligence is ready; this agent is queued for analysis.';if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max(58,(int)$channel['series'][$last]);}}
+    }unset($channel);
+    if(($activity['series']??[])&&($hasRunning||$hasPreparing||$hasQueued)){$last=count($activity['series'])-1;$activity['series'][$last]=max($hasRunning?88:($hasPreparing?62:55),(int)$activity['series'][$last]);}if($hasRunning){$activity['score']=max(78,(int)($activity['score']??0));$activity['status']='Agents Working';}elseif($hasPreparing){$activity['score']=max(60,(int)($activity['score']??0));$activity['status']='Refreshing Trip Intelligence';}elseif($hasQueued){$activity['score']=max(52,(int)($activity['score']??0));$activity['status']='Agents Queued';}return $activity;
 }
 
 function vb_apply_agent_automation_to_activity(array $activity,array $automation): array
 {
-    $pending=(int)($automation['pending_total']??0);$dispatching=(int)($automation['dispatching_total']??0);$activity['pending_automation_triggers']=$pending;$activity['dispatching_automation_triggers']=$dispatching;if($pending+$dispatching<1)return $activity;
-    $byAgent=is_array($automation['by_agent']??null)?$automation['by_agent']:[];$lastAt=$automation['last_at']??null;
+    $pending=(int)($automation['pending_total']??0);$dispatching=(int)($automation['dispatching_total']??0);$activity['pending_automation_triggers']=$pending;$activity['dispatching_automation_triggers']=$dispatching;if($pending+$dispatching<1)return $activity;$byAgent=is_array($automation['by_agent']??null)?$automation['by_agent']:[];$lastAt=$automation['last_at']??null;
     foreach($activity['channels']??[] as &$channel){$key=(string)($channel['key']??'overview');$counts=is_array($byAgent[$key]??null)?$byAgent[$key]:[];$count=(int)($counts['pending']??0)+(int)($counts['deferred']??0)+(int)($counts['dispatching']??0);if($key==='overview')$count=$pending+$dispatching;if($count<1)continue;$channel['metrics']=is_array($channel['metrics']??null)?$channel['metrics']:[];$channel['metrics']['watch_triggers_waiting']=$count;$jobState=(string)($channel['job_state']??'idle');if(in_array($jobState,['running','preparing','queued'],true))continue;$channel['job_state']=$dispatching>0?'dispatching':'watch_triggered';$channel['intensity']=max($dispatching>0?60:52,(int)($channel['intensity']??0));if(($channel['state']??'idle')==='idle')$channel['state']='active';$channel['reason']=$dispatching>0?'A meaningful watch change is being converted into a proactive agent batch.':'A meaningful watch change is waiting for proactive agent review.';if($lastAt)$channel['last_activity']=$lastAt;if(is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max($dispatching>0?60:52,(int)$channel['series'][$last]);}}
-    unset($channel);if((int)($activity['active_agent_jobs']??0)===0){$activity['score']=max($dispatching>0?58:50,(int)($activity['score']??0));$activity['status']=$dispatching>0?'Dispatching Proactive Agents':'Watch Change Waiting for Agents';if(($activity['series']??[])){$last=count($activity['series'])-1;$activity['series'][$last]=max($dispatching>0?58:50,(int)$activity['series'][$last]);}}
-    return $activity;
+    unset($channel);if((int)($activity['active_agent_jobs']??0)===0){$activity['score']=max($dispatching>0?58:50,(int)($activity['score']??0));$activity['status']=$dispatching>0?'Dispatching Proactive Agents':'Watch Change Waiting for Agents';if(($activity['series']??[])){$last=count($activity['series'])-1;$activity['series'][$last]=max($dispatching>0?58:50,(int)$activity['series'][$last]);}}return $activity;
+}
+
+function vb_apply_action_execution_to_activity(array $activity,PDO $pdo,int $userId,?int $tripId): array
+{
+    $activity['active_action_executions']=0;$activity['pending_action_approvals']=0;if(!db_table_exists('trip_agent_action_executions'))return $activity;$where="user_id=? AND status IN ('queued','agent_working','awaiting_approval')";$params=[$userId];if($tripId!==null&&$tripId>0){$where.=' AND dream_trip_id=?';$params[]=$tripId;}$stmt=$pdo->prepare("SELECT agent_type,status,COUNT(*) total,MAX(updated_at) last_at FROM trip_agent_action_executions WHERE $where GROUP BY agent_type,status");$stmt->execute($params);$by=[];$lastAt=null;foreach($stmt->fetchAll()?:[] as $row){$agent=(string)$row['agent_type'];$status=(string)$row['status'];$count=(int)$row['total'];$by[$agent][$status]=$count;if($status==='awaiting_approval')$activity['pending_action_approvals']+=$count;else$activity['active_action_executions']+=$count;$at=(string)($row['last_at']??'');if($at!==''&&($lastAt===null||$at>$lastAt))$lastAt=$at;}
+    foreach($activity['channels']??[] as &$channel){$key=(string)($channel['key']??'overview');$state=$by[$key]??[];$queued=(int)($state['queued']??0);$working=(int)($state['agent_working']??0);$approvals=(int)($state['awaiting_approval']??0);$channel['metrics']=is_array($channel['metrics']??null)?$channel['metrics']:[];$channel['metrics']['accepted_actions_waiting']=$queued+$working;$channel['metrics']['action_approvals_waiting']=$approvals;$current=(string)($channel['job_state']??'idle');if(in_array($current,['running','preparing','queued'],true))continue;if($working>0){$channel['job_state']='action_working';$channel['intensity']=max(76,(int)($channel['intensity']??0));$channel['state']='working';$channel['reason']='This specialist is executing an accepted Next Move and preparing a proposal for approval.';}elseif($queued>0){$channel['job_state']='action_queued';$channel['intensity']=max(54,(int)($channel['intensity']??0));$channel['reason']='An accepted Next Move is waiting for this specialist.';}elseif($approvals>0){$channel['job_state']='approval_waiting';$channel['intensity']=max(46,(int)($channel['intensity']??0));$channel['reason']='A concrete trip change from this specialist is waiting for your approval.';}if(($working+$queued+$approvals)>0&&$lastAt)$channel['last_activity']=$lastAt;if(($working+$queued+$approvals)>0&&is_array($channel['series']??null)&&$channel['series']){$last=count($channel['series'])-1;$channel['series'][$last]=max($working>0?78:($queued>0?55:46),(int)$channel['series'][$last]);}}
+    unset($channel);if((int)($activity['active_agent_jobs']??0)===0&&(int)($activity['dispatching_automation_triggers']??0)===0){if((int)$activity['active_action_executions']>0){$activity['score']=max(64,(int)($activity['score']??0));$activity['status']='Executing Next Moves';}elseif((int)$activity['pending_action_approvals']>0){$activity['score']=max(46,(int)($activity['score']??0));$activity['status']='Trip Approval Waiting';}}return $activity;
 }
 
 try{
-    $pdo=db();$scopeTrip=$tripId>0?$tripId:null;
-    $snapshot=(new VacationBrainActivityService($pdo))->snapshot($userId,$scopeTrip);
-    $jobService=new TripAgentJobService($pdo);$jobs=$jobService->activityStates($userId,$scopeTrip);
-    $snapshot=vb_apply_agent_jobs_to_activity($snapshot,$jobs);
-    $automationService=new TripAgentAutomationService($pdo);if($automationService->ready())$snapshot=vb_apply_agent_automation_to_activity($snapshot,$automationService->activityState($userId,$scopeTrip));
-    echo json_encode(['ok'=>true,'activity'=>$snapshot],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-}catch(OutOfBoundsException $e){
-    http_response_code(404);
-    echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-}catch(InvalidArgumentException $e){
-    http_response_code(422);
-    echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-}catch(Throwable $e){
-    http_response_code(500);
-    echo json_encode(['ok'=>false,'error'=>'Brain activity is temporarily unavailable.'],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-}
+    $pdo=db();$scopeTrip=$tripId>0?$tripId:null;$snapshot=(new VacationBrainActivityService($pdo))->snapshot($userId,$scopeTrip);$jobService=new TripAgentJobService($pdo);$jobs=$jobService->activityStates($userId,$scopeTrip);$snapshot=vb_apply_agent_jobs_to_activity($snapshot,$jobs);$automationService=new TripAgentAutomationService($pdo);if($automationService->ready())$snapshot=vb_apply_agent_automation_to_activity($snapshot,$automationService->activityState($userId,$scopeTrip));$snapshot=vb_apply_action_execution_to_activity($snapshot,$pdo,$userId,$scopeTrip);echo json_encode(['ok'=>true,'activity'=>$snapshot],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+}catch(OutOfBoundsException $e){http_response_code(404);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}
+catch(InvalidArgumentException $e){http_response_code(422);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}
+catch(Throwable $e){http_response_code(500);echo json_encode(['ok'=>false,'error'=>'Brain activity is temporarily unavailable.'],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}
