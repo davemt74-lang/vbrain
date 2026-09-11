@@ -5,12 +5,13 @@ $root=dirname(__DIR__);
 $files=[
     'db/047_proactive_vacation_brain.sql',
     'app/Services/ProactiveTravelService.php',
+    'app/Services/LiveTravelAgentContextService.php',
+    'app/Services/VacationAgentService.php',
     'proactive-trip.php',
     'proactive-settings.php',
     'partials/proactive-trip-panel.php',
     'partials/proactive-dashboard-summary.php',
     'assets/proactive-travel.css',
-    'app/Services/LiveTravelAgentContextService.php',
     'app/bootstrap.php',
     'partials/footer.php',
     'bin/run-travel-watches.php',
@@ -42,6 +43,9 @@ $dashboard=$read('partials/proactive-dashboard-summary.php');foreach(['dashboard
 
 $context=$read('app/Services/LiveTravelAgentContextService.php');foreach(['ProactiveTravelService','agentContext','no provider refresh','payment data','private Trip Memory notes'] as $needle){if(stripos($context,$needle)===false){fwrite(STDERR,"Main Vacation Brain proactive grounding missing {$needle}\n");exit(1);}}
 if(strpos($context,'confirmation_code')!==false||strpos($context,'private_notes')!==false){fwrite(STDERR,"Main-agent proactive context must not query sensitive booking/memory fields.\n");exit(1);}
+
+$mainAgent=$read('app/Services/VacationAgentService.php');
+foreach(['PROACTIVE TRIP STATE','what should i worry','needs attention','anything changed','trip risk','proactive','live[\'proactive\']','no provider refresh was triggered by this chat','still requires your approval'] as $needle){if(stripos($mainAgent,$needle)===false){fwrite(STDERR,"Main Vacation Brain proactive fallback missing {$needle}\n");exit(1);}}
 
 $bootstrap=$read('app/bootstrap.php');if(strpos($bootstrap,"/Services/ProactiveTravelService.php")===false){fwrite(STDERR,"ProactiveTravelService is not loaded by bootstrap.\n");exit(1);}
 $footer=$read('partials/footer.php');foreach(['proactive-dashboard-summary.php','proactive-trip-panel.php','assets/proactive-travel.css'] as $needle){if(strpos($footer,$needle)===false){fwrite(STDERR,"Global proactive UI integration missing {$needle}\n");exit(1);}}
