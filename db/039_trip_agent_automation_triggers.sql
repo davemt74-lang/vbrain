@@ -31,5 +31,9 @@ CREATE TABLE trip_agent_automation_triggers (
   CONSTRAINT fk_trip_agent_automation_batch FOREIGN KEY (batch_id) REFERENCES trip_agent_batches(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Do not replay historical watch alerts when automation is first deployed.
+INSERT INTO app_meta (meta_key,meta_value) VALUES ('trip_agent_automation_started_at',DATE_FORMAT(NOW(),'%Y-%m-%d %H:%i:%s'))
+ON DUPLICATE KEY UPDATE meta_value=meta_value;
+
 INSERT INTO app_meta (meta_key,meta_value) VALUES ('app_version','1.31')
 ON DUPLICATE KEY UPDATE meta_value=VALUES(meta_value);
