@@ -21,10 +21,10 @@ $migration=$read('db/037_trip_agent_jobs.sql');
 foreach(['CREATE TABLE trip_agent_jobs',"ENUM('overview','weather','flights','events','local','itinerary','budget')",'uq_trip_agent_job_active','idx_trip_agent_job_queue','idx_trip_agent_job_heartbeat','active_key','worker_token','attempt_count',"'app_version','1.29'"] as $needle){if(strpos($migration,$needle)===false){fwrite(STDERR,"Agent job migration missing {$needle}\n");exit(1);}}
 
 $service=$read('app/Services/TripAgentJobService.php');
-foreach(['class TripAgentJobService','MAX_ACTIVE_JOBS=20','STALE_MINUTES=20','MAX_ATTEMPTS=2','function enqueue','function enqueueAll','function cancel','function activityStates','function runDue','function recoverStale','worker_token','active_key=NULL','TripAgentService','trip-agent-job:','NotificationService','INSERT INTO trip_agent_jobs','status=\'running\'','status=\'completed\'','status=\'failed\'','DomainException'] as $needle){if(strpos($service,$needle)===false){fwrite(STDERR,"Agent job service missing {$needle}\n");exit(1);}}
+foreach(['class TripAgentJobService','MAX_ACTIVE_JOBS=20','STALE_MINUTES=20','MAX_ATTEMPTS=2','function enqueue','function enqueueAll','function cancel','function activityStates','function runDue','function recoverStale','worker_token','active_key=NULL','TripAgentService','trip-agent-job:','NotificationService','INSERT INTO trip_agent_jobs',"status='running'","status='completed'","status='failed'",'DomainException'] as $needle){if(strpos($service,$needle)===false){fwrite(STDERR,"Agent job service missing {$needle}\n");exit(1);}}
 
 $agent=$read('app/Services/TripAgentService.php');
-foreach(['?string $idempotencyKey=null','byFingerprint','INSERT IGNORE',"$assistantFingerprint",'reused'=>true,'job_key'] as $needle){if(strpos($agent,$needle)===false){fwrite(STDERR,"Trip agent idempotency missing {$needle}\n");exit(1);}}
+foreach(['?string $idempotencyKey=null','byFingerprint','INSERT IGNORE','$assistantFingerprint',"'reused'=>true",'job_key'] as $needle){if(strpos($agent,$needle)===false){fwrite(STDERR,"Trip agent idempotency missing {$needle}\n");exit(1);}}
 
 $api=$read('api/trip-agent-jobs.php');
 foreach(['require_auth','verify_csrf','Cache-Control','enqueue','run_all','cancel','http_response_code(409)','http_response_code(503)','temporarily unavailable'] as $needle){if(strpos($api,$needle)===false){fwrite(STDERR,"Agent job API missing {$needle}\n");exit(1);}}
