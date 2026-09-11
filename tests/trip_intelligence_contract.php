@@ -33,7 +33,7 @@ foreach(['destination_catalog_id','origin_name','origin_iata','destination_iata'
 if(strpos($migration,'UNIQUE KEY uq_trip_snapshot_query')!==false){fwrite(STDERR,"Trip snapshots must remain historical rather than overwriting refreshes.\n");exit(1);}
 
 $index=$read('dream.php');
-foreach(['+ New trip','dream-new.php','Trip Intelligence','trip-index-grid'] as $needle){if(strpos($index,$needle)===false){fwrite(STDERR,"Trip index missing {$needle}\n");exit(1);}}
+foreach(['+ Add Trip','dream-new.php','Active Trips','trip-index-grid'] as $needle){if(strpos($index,$needle)===false){fwrite(STDERR,"Trip index missing {$needle}\n");exit(1);}}
 if(strpos($index,'dream-create')!==false){fwrite(STDERR,"Trip creation is still embedded in the trip list page.\n");exit(1);}
 
 $new=$read('dream-new.php');
