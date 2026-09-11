@@ -5,6 +5,7 @@ final class TravelWatchService
 {
     private const TYPES=['weather','flights','events','places'];
     private const INTERVALS=[60,180,360,720,1440];
+    private const MAX_ACTIVE_WATCHES=25;
 
     public function __construct(private PDO $pdo) {}
 
@@ -58,11 +59,12 @@ final class TravelWatchService
         if(!$trip)throw new RuntimeException('Trip not found.');
         $name=trim((string)($trip['destination_name']??''))?:trim((string)($trip['name']??'Trip'));
         $hasRoute=trim((string)($trip['origin_iata']??$trip['origin_name']??''))!=='';
+        $targetKey=self::tripKey($tripId);$this->assertCapacity($userId,$targetKey);
         return $this->upsert([
-            'user_id'=>$userId,'target_key'=>self::tripKey($tripId),'target_type'=>'trip','dream_trip_id'=>$tripId,
+            'user_id'=>$userId,'target_key'=>$targetKey,'target_type'=>'trip','dream_trip_id'=>$tripId,
             'destination_catalog_id'=>(int)($trip['destination_catalog_id']??0)?:null,'destination_name'=>$name,
             'destination_latitude'=>$this->floatOrNull($trip['destination_latitude']??null),'destination_longitude'=>$this->floatOrNull($trip['destination_longitude']??null),
-            'watch_weather'=>$this->boolInput($input,'watch_weather',true),'watch_flights'=>$this->boolInput($input,'watch_flights',$hasRoute),
+            'watch_weather'=>$this->boolInput($input,'watch_weather',true),'watch_flights'=>$hasRoute&&$this->boolInput($input,'watch_flights',true),
             'watch_events'=>$this->boolInput($input,'watch_events',true),'watch_places'=>$this->boolInput($input,'watch_places',true),
             'interval_minutes'=>$this->interval($input['interval_minutes']??360),'is_active'=>$this->boolInput($input,'is_active',true),
         ]);
@@ -70,15 +72,11 @@ final class TravelWatchService
 
     public function saveDestination(int $userId,int $catalogId,string $name,mixed $lat=null,mixed $lng=null,array $input=[]): array
     {
-        $this->requireReady();$name=trim($name);$catalogId=max(0,$catalogId);
-        if($catalogId>0&&db_table_exists('destination_catalog')){
-            $stmt=$this->pdo->prepare('SELECT id,name,latitude,longitude FROM destination_catalog WHERE id=? LIMIT 1');$stmt->execute([$catalogId]);$row=$stmt->fetch();
-            if(!$row)throw new RuntimeException('Destination not found.');
-            $name=trim((string)$row['name'])?:$name;$lat=$row['latitude']??$lat;$lng=$row['longitude']??$lng;
-        }
+        $this->requireReady();[$catalogId,$name,$lat,$lng]=$this->resolveDestinationTarget($catalogId,$name,$lat,$lng);
         if($name==='')throw new InvalidArgumentException('Destination name is required.');
+        $targetKey=self::destinationKey($catalogId,$name,$lat,$lng);$this->assertCapacity($userId,$targetKey);
         return $this->upsert([
-            'user_id'=>$userId,'target_key'=>self::destinationKey($catalogId,$name,$lat,$lng),'target_type'=>'destination','dream_trip_id'=>null,
+            'user_id'=>$userId,'target_key'=>$targetKey,'target_type'=>'destination','dream_trip_id'=>null,
             'destination_catalog_id'=>$catalogId?:null,'destination_name'=>$name,'destination_latitude'=>$this->floatOrNull($lat),'destination_longitude'=>$this->floatOrNull($lng),
             'watch_weather'=>$this->boolInput($input,'watch_weather',true),'watch_flights'=>false,'watch_events'=>$this->boolInput($input,'watch_events',true),
             'watch_places'=>$this->boolInput($input,'watch_places',true),'interval_minutes'=>$this->interval($input['interval_minutes']??360),'is_active'=>$this->boolInput($input,'is_active',true),
@@ -87,9 +85,10 @@ final class TravelWatchService
 
     public function toggleDestination(int $userId,int $catalogId,string $name,mixed $lat=null,mixed $lng=null): array
     {
-        $this->requireReady();$key=self::destinationKey($catalogId,$name,$lat,$lng);$stmt=$this->pdo->prepare('SELECT * FROM travel_watches WHERE user_id=? AND target_key=? LIMIT 1');$stmt->execute([$userId,$key]);$existing=$stmt->fetch();
+        $this->requireReady();[$catalogId,$name,$lat,$lng]=$this->resolveDestinationTarget($catalogId,$name,$lat,$lng);$key=self::destinationKey($catalogId,$name,$lat,$lng);
+        $stmt=$this->pdo->prepare('SELECT * FROM travel_watches WHERE user_id=? AND target_key=? LIMIT 1');$stmt->execute([$userId,$key]);$existing=$stmt->fetch();
         if($existing&&((int)$existing['is_active'])===1){$this->pdo->prepare('UPDATE travel_watches SET is_active=0,next_check_at=NULL,last_status=\'paused\' WHERE id=? AND user_id=?')->execute([(int)$existing['id'],$userId]);return ['active'=>false,'watch_id'=>(int)$existing['id'],'target_key'=>$key];}
-        $watch=$this->saveDestination($userId,$catalogId,$name,$lat,$lng,['is_active'=>1]);return ['active'=>true,'watch_id'=>(int)$watch['id'],'target_key'=>$key];
+        $this->assertCapacity($userId,$key);$watch=$this->saveDestination($userId,$catalogId,$name,$lat,$lng,['is_active'=>1]);return ['active'=>true,'watch_id'=>(int)$watch['id'],'target_key'=>$key];
     }
 
     public function updateWatch(int $userId,int $watchId,array $input): array
@@ -98,6 +97,7 @@ final class TravelWatchService
         $weather=$this->boolInput($input,'watch_weather',false);$flights=$watch['target_type']==='trip'?$this->boolInput($input,'watch_flights',false):false;$events=$this->boolInput($input,'watch_events',false);$places=$this->boolInput($input,'watch_places',false);
         if(!$weather&&!$flights&&!$events&&!$places)throw new InvalidArgumentException('Keep at least one watch signal enabled.');
         $active=$this->boolInput($input,'is_active',false);$interval=$this->interval($input['interval_minutes']??$watch['interval_minutes']);
+        if($active&&empty($watch['is_active']))$this->assertCapacity($userId,(string)$watch['target_key']);
         $next=$active?(new DateTimeImmutable())->format('Y-m-d H:i:s'):null;
         $stmt=$this->pdo->prepare('UPDATE travel_watches SET watch_weather=?,watch_flights=?,watch_events=?,watch_places=?,interval_minutes=?,is_active=?,next_check_at=?,last_status=? WHERE id=? AND user_id=?');
         $stmt->execute([$weather?1:0,$flights?1:0,$events?1:0,$places?1:0,$interval,$active?1:0,$next,$active?'waiting':'paused',$watchId,$userId]);
@@ -115,6 +115,7 @@ final class TravelWatchService
         $stmt=$this->pdo->query("SELECT * FROM travel_watches WHERE is_active=1 AND (next_check_at IS NULL OR next_check_at<=NOW()) ORDER BY COALESCE(next_check_at,'1970-01-01') ASC,id ASC LIMIT $limit");
         $rows=$stmt->fetchAll()?:[];$result=['checked'=>0,'alerts'=>0,'errors'=>0,'watches'=>[]];
         foreach($rows as $watch){
+            if(!$this->claimWatch((int)$watch['id'],(int)$watch['interval_minutes']))continue;
             try{$run=$this->runOne($watch);$result['checked']++;$result['alerts']+=(int)$run['alerts'];$result['watches'][]=$run;}
             catch(Throwable $e){$result['checked']++;$result['errors']++;$this->markFailure((int)$watch['id'],(int)$watch['interval_minutes'],$e->getMessage());$result['watches'][]=['id'=>(int)$watch['id'],'ok'=>false,'error'=>$this->clip($e->getMessage(),500)];}
         }
@@ -143,6 +144,7 @@ final class TravelWatchService
 
     private function upsert(array $row): array
     {
+        if(!empty($row['is_active']))$this->assertCapacity((int)$row['user_id'],(string)$row['target_key']);
         $next=!empty($row['is_active'])?(new DateTimeImmutable())->format('Y-m-d H:i:s'):null;
         $sql='INSERT INTO travel_watches (user_id,target_key,target_type,dream_trip_id,destination_catalog_id,destination_name,destination_latitude,destination_longitude,watch_weather,watch_flights,watch_events,watch_places,interval_minutes,is_active,next_check_at,last_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE target_type=VALUES(target_type),dream_trip_id=VALUES(dream_trip_id),destination_catalog_id=VALUES(destination_catalog_id),destination_name=VALUES(destination_name),destination_latitude=VALUES(destination_latitude),destination_longitude=VALUES(destination_longitude),watch_weather=VALUES(watch_weather),watch_flights=VALUES(watch_flights),watch_events=VALUES(watch_events),watch_places=VALUES(watch_places),interval_minutes=VALUES(interval_minutes),is_active=VALUES(is_active),next_check_at=IF(VALUES(is_active)=1,NOW(),NULL),last_status=IF(VALUES(is_active)=1,\'waiting\',\'paused\'),last_error=NULL';
         $this->pdo->prepare($sql)->execute([$row['user_id'],$row['target_key'],$row['target_type'],$row['dream_trip_id'],$row['destination_catalog_id'],$row['destination_name'],$row['destination_latitude'],$row['destination_longitude'],$row['watch_weather']?1:0,$row['watch_flights']?1:0,$row['watch_events']?1:0,$row['watch_places']?1:0,$row['interval_minutes'],$row['is_active']?1:0,$next,$row['is_active']?'waiting':'paused']);
@@ -161,7 +163,7 @@ final class TravelWatchService
         $now=json_decode((string)$rows[0]['payload_json'],true)?:[];$before=json_decode((string)$rows[1]['payload_json'],true)?:[];
         if($type==='flights'){
             $a=$now['min_price']??null;$b=$before['min_price']??null;
-            if(is_numeric($a)&&is_numeric($b)&&$b>0){$delta=(float)$a-(float)$b;$abs=abs($delta);$pct=$abs/(float)$b;if($delta<0&&$abs>=max(25.0,(float)$b*.05))return ['event_type'=>'fare_drop','direction'=>'down','title'=>'Flight price moved in your favor','body'=>'Lowest indicative fare dropped $'.number_format($abs,0).' to $'.number_format((float)$a,0).'.','key'=>'fare:'.round((float)$a,0),'target_tab'=>'flights'];if($delta>0&&$abs>=max(40.0,(float)$b*.10))return ['event_type'=>'fare_rise','direction'=>'up','title'=>'Flight price moved up','body'=>'Lowest indicative fare rose $'.number_format($abs,0).' to $'.number_format((float)$a,0).'.','key'=>'fare:'.round((float)$a,0),'target_tab'=>'flights'];}
+            if(is_numeric($a)&&is_numeric($b)&&$b>0){$delta=(float)$a-(float)$b;$abs=abs($delta);if($delta<0&&$abs>=max(25.0,(float)$b*.05))return ['event_type'=>'fare_drop','direction'=>'down','title'=>'Flight price moved in your favor','body'=>'Lowest indicative fare dropped $'.number_format($abs,0).' to $'.number_format((float)$a,0).'.','key'=>'fare:'.round((float)$a,0),'target_tab'=>'flights'];if($delta>0&&$abs>=max(40.0,(float)$b*.10))return ['event_type'=>'fare_rise','direction'=>'up','title'=>'Flight price moved up','body'=>'Lowest indicative fare rose $'.number_format($abs,0).' to $'.number_format((float)$a,0).'.','key'=>'fare:'.round((float)$a,0),'target_tab'=>'flights'];}
             $directNow=!empty($now['direct_available']);$directBefore=!empty($before['direct_available']);if($directNow&&!$directBefore)return ['event_type'=>'direct_flight','direction'=>'up','title'=>'A direct-flight quote appeared','body'=>'The latest indicative flight snapshot now includes a direct option.','key'=>'direct:appeared','target_tab'=>'flights'];return null;
         }
         if($type==='weather'){
@@ -212,6 +214,28 @@ final class TravelWatchService
     private function markFailure(int $watchId,int $minutes,string $error): void
     {
         $minutes=$this->interval($minutes);$next=(new DateTimeImmutable())->modify('+'.$minutes.' minutes')->format('Y-m-d H:i:s');$this->pdo->prepare('UPDATE travel_watches SET last_checked_at=NOW(),next_check_at=?,last_status=\'error\',last_error=? WHERE id=?')->execute([$next,$this->clip($error,500),$watchId]);
+    }
+
+    private function claimWatch(int $watchId,int $minutes): bool
+    {
+        $minutes=$this->interval($minutes);$next=(new DateTimeImmutable())->modify('+'.$minutes.' minutes')->format('Y-m-d H:i:s');$stmt=$this->pdo->prepare("UPDATE travel_watches SET next_check_at=?,last_status='checking' WHERE id=? AND is_active=1 AND (next_check_at IS NULL OR next_check_at<=NOW())");$stmt->execute([$next,$watchId]);return $stmt->rowCount()===1;
+    }
+
+    private function assertCapacity(int $userId,string $targetKey): void
+    {
+        $stmt=$this->pdo->prepare('SELECT is_active FROM travel_watches WHERE user_id=? AND target_key=? LIMIT 1');$stmt->execute([$userId,$targetKey]);$existing=$stmt->fetchColumn();if($existing!==false&&(int)$existing===1)return;
+        $count=$this->pdo->prepare('SELECT COUNT(*) FROM travel_watches WHERE user_id=? AND is_active=1');$count->execute([$userId]);if((int)$count->fetchColumn()>=self::MAX_ACTIVE_WATCHES)throw new RuntimeException('You can actively watch up to '.self::MAX_ACTIVE_WATCHES.' destinations or trips at once. Pause one before adding another.');
+    }
+
+    private function resolveDestinationTarget(int $catalogId,string $name,mixed $lat,mixed $lng): array
+    {
+        $catalogId=max(0,$catalogId);$name=trim($name);$row=null;
+        if(db_table_exists('destination_catalog')){
+            if($catalogId>0){$stmt=$this->pdo->prepare('SELECT id,name,latitude,longitude FROM destination_catalog WHERE id=? LIMIT 1');$stmt->execute([$catalogId]);$row=$stmt->fetch();if(!$row)throw new RuntimeException('Destination not found.');}
+            elseif($name!==''){$stmt=$this->pdo->prepare("SELECT id,name,latitude,longitude FROM destination_catalog WHERE LOWER(name)=LOWER(?) AND status='active' ORDER BY id ASC LIMIT 1");$stmt->execute([$name]);$row=$stmt->fetch()?:null;}
+        }
+        if($row){$catalogId=(int)$row['id'];$name=trim((string)$row['name'])?:$name;$lat=$row['latitude']??$lat;$lng=$row['longitude']??$lng;}
+        return [$catalogId,$name,$lat,$lng];
     }
 
     private function watch(int $userId,int $watchId): ?array
