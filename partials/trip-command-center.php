@@ -4,6 +4,7 @@
 try{
     $commandCenterSnapshot=(new TripCommandCenterService($pdo))->snapshot($userId);
     $ccBookingService=new TripBookingService($pdo);if($ccBookingService->ready())$commandCenterSnapshot=$ccBookingService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
+    $ccImportService=new TripBookingImportService($pdo);if($ccImportService->ready())$commandCenterSnapshot=$ccImportService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
     $ccReminderService=new TripBookingReminderService($pdo);if($ccReminderService->ready())$commandCenterSnapshot=$ccReminderService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
     $ccOperationsService=new TripTravelOperationsService($pdo);if($ccOperationsService->ready())$commandCenterSnapshot=$ccOperationsService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
 }catch(Throwable $e){error_log('Trip Command Center render failed: '.$e->getMessage());$commandCenterSnapshot=['ready'=>false,'status'=>'Command Center unavailable','summary'=>[],'attention'=>[],'upcoming_trips'=>[],'active_agents'=>[],'watch_alerts'=>[],'booking_handoffs'=>[],'risks'=>[]];}
@@ -19,7 +20,7 @@ $ccHandoffLabel=static function(string $status): string{return match($status){'a
       <div class="vb-command-title-row"><h2>Trip Command Center</h2><span class="vb-command-live"><i></i> Live</span></div>
       <p><strong data-command-status><?=e((string)($commandCenterSnapshot['status']??'Trips are under control'))?></strong> · What Vacation Brain needs from you today, what its agents are doing, and what could change your plans.</p>
     </div>
-    <div class="vb-command-head-actions"><a class="button secondary small" href="<?=e(app_url('dream.php'))?>">All trips</a><button class="button secondary small" type="button" data-vb-command-refresh>Refresh</button></div>
+    <div class="vb-command-head-actions"><a class="button secondary small" href="<?=e(app_url('booking-inbox.php'))?>">Booking Inbox<?=(int)($ccSummary['booking_imports_review']??0)>0?' · '.(int)$ccSummary['booking_imports_review']:''?></a><a class="button secondary small" href="<?=e(app_url('dream.php'))?>">All trips</a><button class="button secondary small" type="button" data-vb-command-refresh>Refresh</button></div>
   </div>
 
   <div class="vb-command-stats" data-command-stats>
