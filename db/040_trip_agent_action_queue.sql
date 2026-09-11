@@ -36,5 +36,8 @@ ALTER TABLE trip_agent_batches
   ADD COLUMN actions_synced_at DATETIME NULL AFTER completed_at,
   ADD KEY idx_trip_agent_batch_actions_sync (actions_synced_at,id);
 
+-- Existing completed batches predate the action queue. Do not replay stale decisions after deployment.
+UPDATE trip_agent_batches SET actions_synced_at=NOW() WHERE actions_synced_at IS NULL;
+
 INSERT INTO app_meta (meta_key,meta_value) VALUES ('app_version','1.32')
 ON DUPLICATE KEY UPDATE meta_value=VALUES(meta_value);
