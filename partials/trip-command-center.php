@@ -1,10 +1,15 @@
 <?php
 /** @var PDO $pdo */
 /** @var int $userId */
-try{$commandCenterSnapshot=(new TripCommandCenterService($pdo))->snapshot($userId);}catch(Throwable $e){error_log('Trip Command Center render failed: '.$e->getMessage());$commandCenterSnapshot=['ready'=>false,'status'=>'Command Center unavailable','summary'=>[],'attention'=>[],'upcoming_trips'=>[],'active_agents'=>[],'watch_alerts'=>[],'booking_handoffs'=>[],'risks'=>[]];}
+try{
+    $commandCenterSnapshot=(new TripCommandCenterService($pdo))->snapshot($userId);
+    $ccBookingService=new TripBookingService($pdo);if($ccBookingService->ready())$commandCenterSnapshot=$ccBookingService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
+    $ccReminderService=new TripBookingReminderService($pdo);if($ccReminderService->ready())$commandCenterSnapshot=$ccReminderService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
+}catch(Throwable $e){error_log('Trip Command Center render failed: '.$e->getMessage());$commandCenterSnapshot=['ready'=>false,'status'=>'Command Center unavailable','summary'=>[],'attention'=>[],'upcoming_trips'=>[],'active_agents'=>[],'watch_alerts'=>[],'booking_handoffs'=>[],'risks'=>[]];}
 $ccSummary=$commandCenterSnapshot['summary']??[];
 $ccMoney=static function(mixed $value,string $currency='USD'): string{if($value===null||$value==='')return '—';$symbol=$currency==='USD'?'$':$currency.' ';return $symbol.number_format((float)$value,0);};
 $ccAge=static function(string $value): string{$ts=strtotime($value);if(!$ts)return ''; $s=max(0,time()-$ts);if($s<60)return 'now';if($s<3600)return floor($s/60).'m ago';if($s<86400)return floor($s/3600).'h ago';return floor($s/86400).'d ago';};
+$ccHandoffLabel=static function(string $status): string{return match($status){'awaiting_approval'=>'Review','ready_to_book'=>'Book','changed'=>'Reconfirm',default=>'Open'};};
 ?>
 <section class="vb-dashboard-section vb-command-center" data-vb-command-center>
   <div class="vb-command-head">
@@ -32,15 +37,15 @@ $ccAge=static function(string $value): string{$ts=strtotime($value);if(!$ts)retu
         <?php foreach(array_slice($commandCenterSnapshot['attention']??[],0,6) as $item):?>
           <a class="vb-command-row" href="<?=e((string)$item['url'])?>"><span class="vb-command-icon <?=e((string)$item['kind'])?>"><?=match((string)$item['kind']){'approval'=>'✓','failed'=>'!','risk'=>'△',default=>'→'}?></span><span class="vb-command-row-copy"><strong><?=e((string)$item['title'])?></strong><small><?=e((string)$item['body'])?></small></span><b><?=e((string)$item['cta'])?> →</b></a>
         <?php endforeach;?>
-        <?php if(empty($commandCenterSnapshot['attention'])):?><div class="vb-command-empty"><strong>Nothing urgent.</strong><span>Vacation Brain will put approvals, failed agent work, high-priority Next Moves, and serious risks here.</span></div><?php endif;?>
+        <?php if(empty($commandCenterSnapshot['attention'])):?><div class="vb-command-empty"><strong>Nothing urgent.</strong><span>Vacation Brain will put approvals, failed agent work, booking deadlines, required reminders, high-priority Next Moves, and serious risks here.</span></div><?php endif;?>
       </div>
     </section>
 
     <section class="vb-command-card">
       <div class="vb-command-card-head"><div><span class="eyebrow">Planning horizon</span><h3>Trips in motion</h3></div><a href="<?=e(app_url('dream.php'))?>">View all →</a></div>
       <div class="vb-command-trip-list" data-command-trips>
-        <?php foreach(array_slice($commandCenterSnapshot['upcoming_trips']??[],0,5) as $trip):?>
-          <a class="vb-command-trip" href="<?=e((string)$trip['url'])?>"><div class="vb-command-trip-main"><strong><?=e((string)$trip['name'])?></strong><span><?=e((string)($trip['destination']?:$trip['date_label']))?> · <?=e((string)$trip['date_label'])?></span></div><div class="vb-command-trip-meter"><i style="width:<?=max(0,min(100,(int)$trip['booking_readiness']))?>%"></i></div><div class="vb-command-trip-meta"><span><?=e($ccMoney($trip['planned_spend'],$trip['currency']))?> / <?=e($ccMoney($trip['target_budget'],$trip['currency']))?></span><span><?=((int)$trip['active_agents'])?> agents · <?=((int)$trip['next_moves'])?> moves</span></div></a>
+        <?php foreach(array_slice($commandCenterSnapshot['upcoming_trips']??[],0,5) as $trip): $ccReady=(int)($trip['booking_readiness']??0);$ccReadySummary=$trip['booking_summary']??null;$ccTripHref=(string)($trip['booking_url']??$trip['url']);?>
+          <a class="vb-command-trip" href="<?=e($ccTripHref)?>"><div class="vb-command-trip-main"><strong><?=e((string)$trip['name'])?></strong><span><?=e((string)($trip['destination']?:$trip['date_label']))?> · <?=e((string)$trip['date_label'])?></span></div><div class="vb-command-trip-meter"><i style="width:<?=max(0,min(100,$ccReady))?>%"></i></div><div class="vb-command-trip-meta"><span><?=$ccReadySummary?e($ccReady.'% ready · '.(int)($ccReadySummary['outstanding']??0).' required open'):e($ccReady.'% planning readiness')?></span><span><?=((int)$trip['active_agents'])?> agents · <?=((int)$trip['next_moves'])?> moves</span></div></a>
         <?php endforeach;?>
         <?php if(empty($commandCenterSnapshot['upcoming_trips'])):?><div class="vb-command-empty"><strong>No trips in motion yet.</strong><span>Create a trip and Vacation Brain will operate it from here.</span><a href="<?=e(app_url('dream-new.php'))?>">Plan a trip →</a></div><?php endif;?>
       </div>
@@ -67,10 +72,10 @@ $ccAge=static function(string $value): string{$ts=strtotime($value);if(!$ts)retu
     </section>
 
     <section class="vb-command-card">
-      <div class="vb-command-card-head"><div><span class="eyebrow">Human confirmation</span><h3>Booking handoffs</h3></div><span class="vb-command-safe">Approval required</span></div>
+      <div class="vb-command-card-head"><div><span class="eyebrow">Human confirmation</span><h3>Booking handoffs</h3></div><span class="vb-command-safe">Live confirmation required</span></div>
       <div class="vb-command-list compact" data-command-handoffs>
         <?php foreach(array_slice($commandCenterSnapshot['booking_handoffs']??[],0,5) as $handoff):?>
-          <a class="vb-command-handoff-row" href="<?=e((string)$handoff['url'])?>"><span class="vb-command-handoff-icon">↗</span><span><strong><?=e((string)$handoff['title'])?></strong><small><?=e((string)$handoff['trip_name'])?> · <?=e((string)$handoff['approval_note'])?></small></span><b><?=$handoff['status']==='awaiting_approval'?'Review':'Saved'?></b></a>
+          <a class="vb-command-handoff-row" href="<?=e((string)$handoff['url'])?>"><span class="vb-command-handoff-icon">↗</span><span><strong><?=e((string)$handoff['title'])?></strong><small><?=e((string)$handoff['trip_name'])?> · <?=e((string)$handoff['approval_note'])?></small></span><b><?=e($ccHandoffLabel((string)$handoff['status']))?></b></a>
         <?php endforeach;?>
         <?php if(empty($commandCenterSnapshot['booking_handoffs'])):?><div class="vb-command-empty"><strong>No booking handoffs waiting.</strong><span>Flights, lodging, tickets, reservations, and payments always require live provider confirmation.</span></div><?php endif;?>
       </div>
