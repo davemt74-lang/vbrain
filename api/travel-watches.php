@@ -7,8 +7,16 @@ $userId=require_auth();$service=new TravelWatchService(db());
 try{
     if(!$service->ready())throw new RuntimeException('Run System Upgrade before using Destination Watches.');
     if($_SERVER['REQUEST_METHOD']==='GET'){
-        $keys=[];foreach($service->watchedKeys($userId) as $key=>$row)$keys[$key]=['watch_id'=>(int)$row['id'],'target_type'=>(string)$row['target_type'],'dream_trip_id'=>(int)($row['dream_trip_id']??0),'destination_catalog_id'=>(int)($row['destination_catalog_id']??0)];
-        echo json_encode(['ok'=>true,'keys'=>$keys],JSON_UNESCAPED_SLASHES);exit;
+        $keys=[];$destinations=[];$trips=[];
+        foreach($service->watchedKeys($userId) as $key=>$row){
+            $keys[$key]=['watch_id'=>(int)$row['id'],'target_type'=>(string)$row['target_type'],'dream_trip_id'=>(int)($row['dream_trip_id']??0),'destination_catalog_id'=>(int)($row['destination_catalog_id']??0)];
+        }
+        foreach($service->listForUser($userId) as $row){
+            if(empty($row['is_active']))continue;
+            if(($row['target_type']??'')==='destination')$destinations[]=['watch_id'=>(int)$row['id'],'target_key'=>(string)$row['target_key'],'destination_catalog_id'=>(int)($row['destination_catalog_id']??0),'destination_name'=>(string)$row['destination_name']];
+            elseif(($row['target_type']??'')==='trip')$trips[]=['watch_id'=>(int)$row['id'],'target_key'=>(string)$row['target_key'],'dream_trip_id'=>(int)($row['dream_trip_id']??0),'destination_name'=>(string)$row['destination_name']];
+        }
+        echo json_encode(['ok'=>true,'keys'=>$keys,'destinations'=>$destinations,'trips'=>$trips],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')throw new InvalidArgumentException('Unsupported request method.');
     verify_csrf();$action=(string)($_POST['action']??'');
