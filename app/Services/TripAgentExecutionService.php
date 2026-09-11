@@ -98,13 +98,15 @@ final class TripAgentExecutionService
 
     /**
      * Apply a standing-policy planning change without pretending the user clicked
-     * transaction approval. Hard safety is repeated here so policy-engine bugs or
-     * future callers cannot turn autonomy into provider/payment authority.
+     * transaction approval. Hard safety and active owner policy are rechecked here
+     * so policy-engine bugs or future callers cannot turn autonomy into provider,
+     * payment, or disabled-policy authority.
      */
-    public function applyAutonomous(int $userId,int $tripId,int $actionId,string $policyRef='',?array $autonomyAudit=null): array
+    public function applyAutonomous(int $userId,int $tripId,int $actionId,string $policyRef,array $autonomyAudit): array
     {
-        $this->requireReady();if(!db_column_exists('trip_agent_action_executions','authorization_source'))throw new RuntimeException('Run System Upgrade to enable autonomous planning authorization.');$this->pdo->beginTransaction();
+        $this->requireReady();if(!db_column_exists('trip_agent_action_executions','authorization_source')||!db_table_exists('trip_autonomy_controls'))throw new RuntimeException('Run System Upgrade to enable autonomous planning authorization.');if(trim($policyRef)===''||!$autonomyAudit)throw new DomainException('Autonomous planning requires a saved standing-policy authorization receipt.');$this->pdo->beginTransaction();
         try{
+            $policyLock=$this->pdo->prepare("SELECT enabled,autonomy_mode FROM trip_autonomy_controls WHERE user_id=? AND dream_trip_id=? FOR UPDATE");$policyLock->execute([$userId,$tripId]);$policy=$policyLock->fetch();if(!$policy||empty($policy['enabled'])||(string)$policy['autonomy_mode']!=='planning')throw new DomainException('Planning autopilot is not currently enabled for this trip.');
             $stmt=$this->pdo->prepare("SELECT * FROM trip_agent_action_executions WHERE action_id=? AND user_id=? AND dream_trip_id=? FOR UPDATE");$stmt->execute([$actionId,$userId,$tripId]);$row=$stmt->fetch();if(!$row||$row['status']!=='awaiting_approval')throw new DomainException('This proposal is no longer waiting for policy evaluation.');
             $actionLock=$this->pdo->prepare('SELECT status FROM trip_agent_actions WHERE id=? AND user_id=? AND dream_trip_id=? FOR UPDATE');$actionLock->execute([$actionId,$userId,$tripId]);if((string)($actionLock->fetchColumn()?:'')!=='accepted')throw new DomainException('This Next Move is no longer accepted.');
             $proposalType=(string)($row['proposal_type']??'');if(!in_array($proposalType,self::AUTONOMY_TYPES,true))throw new DomainException('Provider handoffs and budget decisions cannot be applied by standing autonomy policy.');
@@ -116,8 +118,7 @@ final class TripAgentExecutionService
             if(!in_array((string)($proposal['item_type']??'idea'),self::AUTONOMY_ITEMS,true))throw new DomainException('Flight, lodging, merchandise, and unknown item types cannot be auto-applied.');
             $executionId=(int)$row['id'];$this->pdo->prepare("UPDATE trip_agent_action_executions SET status='applied',authorization_source='autonomy_policy',approved_at=NULL,applied_at=NOW(),error_message=NULL WHERE id=?")->execute([$executionId]);
             $this->event($executionId,$actionId,$userId,$tripId,'policy_authorized',['proposal_type'=>$proposalType,'policy_ref'=>$this->clip($policyRef,180)]);$this->applyProposal($userId,$tripId,$proposalType,$proposal);$this->pdo->prepare("UPDATE trip_agent_action_executions SET status='completed',completed_at=NOW(),updated_at=NOW() WHERE id=?")->execute([$executionId]);$this->pdo->prepare("UPDATE trip_agent_actions SET status='completed',completed_at=NOW(),updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?")->execute([$actionId,$userId,$tripId]);$this->event($executionId,$actionId,$userId,$tripId,'applied',['proposal_type'=>$proposalType,'authorization_source'=>'autonomy_policy']);$this->event($executionId,$actionId,$userId,$tripId,'completed',['source'=>'autonomy_policy']);
-            $this->autonomyDecision($autonomyAudit,$executionId,$actionId,$userId,$tripId,'applied');
-            $this->pdo->commit();
+            $this->autonomyDecision($autonomyAudit,$executionId,$actionId,$userId,$tripId,'applied');$this->pdo->commit();
         }catch(Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
         return $this->executionForAction($userId,$tripId,$actionId)??[];
     }
