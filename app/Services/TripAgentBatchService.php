@@ -27,10 +27,10 @@ final class TripAgentBatchService
     {
         $this->requireReady();$limit=max(1,min(5,$limit));$this->recoverStale();$result=['claimed'=>0,'ready'=>0,'failed'=>0,'retried'=>0,'batches'=>[]];
         for($i=0;$i<$limit;$i++){
-            $id=(int)($this->pdo->query("SELECT id FROM trip_agent_batches WHERE status='queued' ORDER BY queued_at ASC,id ASC LIMIT 1")->fetchColumn()?:0);if($id<1)break;
+            $id=(int)($this->pdo->query("SELECT b.id FROM trip_agent_batches b WHERE b.status='queued' AND EXISTS (SELECT 1 FROM trip_agent_jobs j WHERE j.batch_id=b.id AND j.status='queued') ORDER BY b.queued_at ASC,b.id ASC LIMIT 1")->fetchColumn()?:0);if($id<1)break;
             $token=bin2hex(random_bytes(16));$claim=$this->pdo->prepare("UPDATE trip_agent_batches SET status='refreshing',worker_token=?,attempt_count=attempt_count+1,started_at=NOW(),heartbeat_at=NOW(),error_message=NULL WHERE id=? AND status='queued'");$claim->execute([$token,$id]);if($claim->rowCount()!==1){$i--;continue;}
             $result['claimed']++;$batch=$this->rawBatch($id);if(!$batch)continue;
-            try{$this->prepareClaimed($batch,$token);$result['ready']++;$result['batches'][]=['id'=>$id,'status'=>'ready'];}
+            try{$status=$this->prepareClaimed($batch,$token);if($status==='ready')$result['ready']++;$result['batches'][]=['id'=>$id,'status'=>$status];}
             catch(Throwable $e){$retry=$this->markFailure($batch,$token,$e->getMessage());$result[$retry?'retried':'failed']++;$result['batches'][]=['id'=>$id,'status'=>$retry?'queued':'failed','error'=>$this->clip($e->getMessage(),300)];}
         }
         return $result;
@@ -54,6 +54,11 @@ final class TripAgentBatchService
         if(!$this->ready()||$batchId<1)return;$stmt=$this->pdo->prepare('DELETE b FROM trip_agent_batches b LEFT JOIN trip_agent_jobs j ON j.batch_id=b.id WHERE b.id=? AND j.id IS NULL');$stmt->execute([$batchId]);
     }
 
+    public function cancelIfInactive(int $batchId): void
+    {
+        if(!$this->ready()||$batchId<1)return;$stmt=$this->pdo->prepare("SELECT COUNT(*) FROM trip_agent_jobs WHERE batch_id=? AND status IN ('queued','running')");$stmt->execute([$batchId]);if((int)$stmt->fetchColumn()>0)return;$this->pdo->prepare("UPDATE trip_agent_batches SET status='cancelled',worker_token=NULL,error_message=NULL,completed_at=COALESCE(completed_at,NOW()) WHERE id=? AND status='queued'")->execute([$batchId]);
+    }
+
     public function recoverStale(): int
     {
         if(!$this->ready())return 0;$cutoff=(new DateTimeImmutable('-'.self::STALE_MINUTES.' minutes'))->format('Y-m-d H:i:s');$stmt=$this->pdo->prepare("SELECT * FROM trip_agent_batches WHERE status='refreshing' AND COALESCE(heartbeat_at,started_at,updated_at)<? ORDER BY id ASC LIMIT 50");$stmt->execute([$cutoff]);$rows=$stmt->fetchAll()?:[];$count=0;
@@ -62,7 +67,7 @@ final class TripAgentBatchService
         return $count;
     }
 
-    private function prepareClaimed(array $batch,string $token): void
+    private function prepareClaimed(array $batch,string $token): string
     {
         $id=(int)$batch['id'];$userId=(int)$batch['user_id'];$tripId=(int)$batch['dream_trip_id'];$required=json_decode((string)$batch['required_types_json'],true);$required=is_array($required)?array_values(array_intersect(self::DATA_TYPES,$required)):self::DATA_TYPES;
         $service=new TripIntelligenceService($this->pdo);if(!$service->ready())throw new RuntimeException('Run System Upgrade before preparing trip intelligence.');$dashboard=$service->dashboard($userId,$tripId);$stale=is_array($dashboard['stale']??null)?$dashboard['stale']:[];$refresh=array_values(array_intersect($required,$stale));
@@ -70,7 +75,8 @@ final class TripAgentBatchService
         $snapshotIds=[];foreach(self::DATA_TYPES as $type){$snapshot=$dashboard['snapshots'][$type]??null;if(is_array($snapshot)&&!empty($snapshot['id']))$snapshotIds[$type]=(int)$snapshot['id'];}
         $live=new TripLiveIntelligenceService($this->pdo);$supervisor=(new TripSupervisorService($this->pdo))->overview($userId,$tripId,$dashboard);$agents=json_decode((string)$batch['agent_types_json'],true);$agents=is_array($agents)?$agents:[];
         $dashboard['_agent_batch']=['id'=>$id,'scope'=>(string)$batch['scope'],'agent_types'=>$agents,'required_types'=>$required,'refreshed_types'=>$refresh,'snapshot_ids'=>$snapshotIds,'prepared_at'=>gmdate('c'),'changes'=>$live->allChanges($userId,$tripId),'updates'=>$supervisor['updates']??[],'data_health'=>$supervisor['data_health']??[],'supervisor'=>$supervisor];
-        $context=$this->json($dashboard);$done=$this->pdo->prepare("UPDATE trip_agent_batches SET status='ready',worker_token=NULL,refreshed_types_json=?,snapshot_ids_json=?,context_json=?,heartbeat_at=NOW(),ready_at=NOW(),completed_at=NOW(),error_message=NULL WHERE id=? AND worker_token=? AND status='refreshing'");$done->execute([$this->json($refresh),$this->json($snapshotIds),$context,$id,$token]);if($done->rowCount()!==1)throw new RuntimeException('Agent intelligence batch lost its worker claim.');
+        $context=$this->json($dashboard);$active=$this->pdo->prepare("SELECT COUNT(*) FROM trip_agent_jobs WHERE batch_id=? AND status IN ('queued','running')");$active->execute([$id]);if((int)$active->fetchColumn()===0){$cancel=$this->pdo->prepare("UPDATE trip_agent_batches SET status='cancelled',worker_token=NULL,refreshed_types_json=?,snapshot_ids_json=?,context_json=?,heartbeat_at=NOW(),completed_at=NOW(),error_message=NULL WHERE id=? AND worker_token=? AND status='refreshing'");$cancel->execute([$this->json($refresh),$this->json($snapshotIds),$context,$id,$token]);return 'cancelled';}
+        $done=$this->pdo->prepare("UPDATE trip_agent_batches SET status='ready',worker_token=NULL,refreshed_types_json=?,snapshot_ids_json=?,context_json=?,heartbeat_at=NOW(),ready_at=NOW(),completed_at=NOW(),error_message=NULL WHERE id=? AND worker_token=? AND status='refreshing'");$done->execute([$this->json($refresh),$this->json($snapshotIds),$context,$id,$token]);if($done->rowCount()!==1)throw new RuntimeException('Agent intelligence batch lost its worker claim.');return 'ready';
     }
 
     private function markFailure(array $batch,string $token,string $message): bool
