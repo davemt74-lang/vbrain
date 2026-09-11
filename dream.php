@@ -12,11 +12,13 @@ $activeTrips=array_values(array_filter($trips,static fn(array $trip): bool=>!in_
 $completedTrips=array_values(array_filter($trips,static fn(array $trip): bool=>(string)($trip['status']??'')==='completed'));
 $roleLabels=['co_planner'=>'Co-planner','traveler'=>'Traveler','viewer'=>'Viewer'];
 $activity=['score'=>0,'status'=>'Quiet','summary'=>'Vacation Brain is waiting for trip activity.','stats'=>[],'channels'=>[]];
-try{$activity=(new VacationBrainActivityService($pdo))->snapshot($userId);}catch(Throwable $e){error_log('Planning hub activity failed: '.$e->getMessage());}
 $commandSnapshot=['summary'=>[],'active_agents'=>[],'attention'=>[]];
-try{$commandSnapshot=(new TripCommandCenterService($pdo))->snapshot($userId);}catch(Throwable $e){error_log('Planning hub command snapshot failed: '.$e->getMessage());}
-$activeAgentCount=(int)($commandSnapshot['summary']['active_agents']??count((array)($commandSnapshot['active_agents']??[])));
-$needsYouCount=(int)($commandSnapshot['summary']['needs_you']??count((array)($commandSnapshot['attention']??[])));
+$activeAgentCount=0;
+if($activeView==='agents'){
+    try{$activity=(new VacationBrainActivityService($pdo))->snapshot($userId);}catch(Throwable $e){error_log('Planning hub activity failed: '.$e->getMessage());}
+    try{$commandSnapshot=(new TripCommandCenterService($pdo))->snapshot($userId);}catch(Throwable $e){error_log('Planning hub command snapshot failed: '.$e->getMessage());}
+    $activeAgentCount=(int)($commandSnapshot['summary']['active_agents']??count((array)($commandSnapshot['active_agents']??[])));
+}
 $pageStyles=['assets/trip-intelligence.css','assets/trip-collaboration.css','assets/brain-activity.css','assets/trip-command-center.css','assets/traveler-memory-summary.css','assets/proactive-travel.css','assets/trip-planning-hub.css'];
 $title='Plan Trips — Vacation Brain';
 
@@ -44,7 +46,7 @@ require __DIR__.'/partials/header.php';
   <div class="dashboard-head trip-index-head vb-plan-hub-head"><div><div class="eyebrow">Trip Intelligence · Planning Hub</div><h1>Trips the brain is currently thinking about.</h1><p class="muted">Trips, live agent work, approvals, provider signals and learned travel memory now live together here.</p></div><a class="button primary" href="<?=e(app_url('dream-new.php'))?>">+ New trip</a></div>
 
   <nav class="vb-plan-hub-tabs" aria-label="Trip planning sections">
-    <?php foreach($views as $key=>$label):$count=$key==='trips'?count($activeTrips):($key==='agents'?$activeAgentCount:($key==='operations'?$needsYouCount:null));?>
+    <?php foreach($views as $key=>$label):$count=$key==='trips'?count($activeTrips):($key==='agents'&&$activeView==='agents'?$activeAgentCount:null);?>
       <a class="<?=$activeView===$key?'active':''?>" href="<?=e(app_url('dream.php?view='.$key))?>" aria-current="<?=$activeView===$key?'page':'false'?>"><span><?=e($label)?></span><?php if($count!==null):?><b><?=$count?></b><?php endif;?></a>
     <?php endforeach;?>
   </nav>
