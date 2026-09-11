@@ -36,8 +36,17 @@ ALTER TABLE trip_agent_batches
   ADD COLUMN actions_synced_at DATETIME NULL AFTER completed_at,
   ADD KEY idx_trip_agent_batch_actions_sync (actions_synced_at,id);
 
--- Existing completed batches predate the action queue. Do not replay stale decisions after deployment.
-UPDATE trip_agent_batches SET actions_synced_at=NOW() WHERE actions_synced_at IS NULL;
+-- Historical batches predate the action queue. Mark them handled, but leave an in-flight
+-- Overview job unsynced so its eventual result can create the first real Next Moves set.
+UPDATE trip_agent_batches b
+SET b.actions_synced_at=NOW()
+WHERE b.actions_synced_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM trip_agent_jobs j
+    WHERE j.batch_id=b.id
+      AND j.agent_type='overview'
+      AND j.status IN ('queued','running')
+  );
 
 INSERT INTO app_meta (meta_key,meta_value) VALUES ('app_version','1.32')
 ON DUPLICATE KEY UPDATE meta_value=VALUES(meta_value);
