@@ -23,7 +23,7 @@ foreach(['class TripAgentAutomationService','MAX_DAILY_BATCHES=6','MAX_ATTEMPTS=
 if(strpos($service,'Math.random')!==false){fwrite(STDERR,"Server automation must never use random scheduling.\n");exit(1);}
 
 $batch=$read('app/Services/TripAgentBatchService.php');
-foreach(["['single','all','automation']",'requiredTypes($agents,$scope)',"$scope==='automation'",'$agent!==\'overview\''] as $needle){if(strpos($batch,$needle)===false){fwrite(STDERR,"Automation batch cost scoping missing {$needle}\n");exit(1);}}
+foreach(["['single','all','automation']",'requiredTypes($agents,$scope)','$scope===\'automation\'','$agent!==\'overview\''] as $needle){if(strpos($batch,$needle)===false){fwrite(STDERR,"Automation batch cost scoping missing {$needle}\n");exit(1);}}
 
 $jobs=$read('app/Services/TripAgentJobService.php');
 foreach(['function enqueueAgentSet','function hasActiveTripJobs','SELECT id FROM users WHERE id=? FOR UPDATE','SELECT id FROM dream_trips WHERE id=? AND user_id=? FOR UPDATE',"'automation'",'batchScope','trip_agent_automation','watch follow-up','agentType!==\'overview\''] as $needle){if(strpos($jobs,$needle)===false){fwrite(STDERR,"Automation-safe job orchestration missing {$needle}\n");exit(1);}}
