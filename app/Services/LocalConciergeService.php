@@ -116,18 +116,19 @@ final class LocalConciergeService
     public function agentContext(int $userId,int $limit=1): string
     {
         if(!$this->ready())return '';$limit=max(1,min(3,$limit));
-        $stmt=$this->pdo->prepare("SELECT r.id,r.dream_trip_id,r.anchor_mode,r.anchor_label,r.concierge_window,r.suggestions_json,r.weather_json,r.observed_at,t.name trip_name
-            FROM trip_local_concierge_runs r JOIN dream_trips t ON t.id=r.dream_trip_id
-            WHERE r.user_id=? ORDER BY r.observed_at DESC,r.id DESC LIMIT $limit");$stmt->execute([$userId]);$rows=$stmt->fetchAll()?:[];if(!$rows)return '';
-        $parts=[];foreach($rows as $row){$suggestions=json_decode((string)($row['suggestions_json']??''),true)?:[];$bits=[];foreach(array_slice($suggestions,0,5) as $s){if(!is_array($s))continue;$bits[]=(string)($s['title']??'Local option').' ['.(string)($s['category']??'local').']';}$parts[]=(string)$row['trip_name'].' · '.str_replace('_',' ',(string)$row['concierge_window']).' · '.implode(', ',$bits);}
-        return 'LOCAL CONCIERGE STATE (saved results only; no provider or location refresh from chat): '.implode('; ',$parts).'. Exact device coordinates are never stored in this concierge ledger. Treat results as time-sensitive public place/event suggestions, not reservations. Only the owner or a Co-planner may add a suggestion to the itinerary; Traveler and Viewer roles cannot mutate the shared plan.';
+        // Access is rechecked through run(); revoked/left shared trips disappear from agent context immediately.
+        $stmt=$this->pdo->prepare('SELECT id,dream_trip_id FROM trip_local_concierge_runs WHERE user_id=? ORDER BY observed_at DESC,id DESC LIMIT 12');$stmt->execute([$userId]);$runs=[];
+        foreach($stmt->fetchAll()?:[] as $row){try{$run=$this->run($userId,(int)$row['dream_trip_id'],(int)$row['id']);}catch(Throwable){$run=null;}if(!$run)continue;$runs[]=$run;if(count($runs)>=$limit)break;}
+        if(!$runs)return '';$parts=[];
+        foreach($runs as $run){$bits=[];foreach((array)($run['suggestions']??[]) as $s){if(!is_array($s)||!empty($s['dismissed']))continue;$label=(string)($s['title']??'Local option').' ['.(string)($s['category']??'local').']';if(!empty($s['added']))$label.=' (added to itinerary)';$bits[]=$label;if(count($bits)>=5)break;}$parts[]='trip #'.(int)$run['trip_id'].' · '.str_replace('_',' ',(string)$run['concierge_window']).' · '.($bits?implode(', ',$bits):'no active suggestions');}
+        return 'LOCAL CONCIERGE STATE (saved results only; no provider or location refresh from chat): '.implode('; ',$parts).'. Exact device coordinates are never stored in this concierge ledger. Dismissed suggestions are excluded. Treat results as time-sensitive public place/event suggestions, not reservations. Only the owner or a Co-planner may add a suggestion to the itinerary; Traveler and Viewer roles cannot mutate the shared plan.';
     }
 
     public function fallback(int $userId): ?array
     {
         if(!$this->ready())return null;
-        $stmt=$this->pdo->prepare('SELECT id,dream_trip_id FROM trip_local_concierge_runs WHERE user_id=? ORDER BY observed_at DESC,id DESC LIMIT 1');$stmt->execute([$userId]);$row=$stmt->fetch();if(!$row)return null;
-        try{return $this->run($userId,(int)$row['dream_trip_id'],(int)$row['id']);}catch(Throwable){return null;}
+        $stmt=$this->pdo->prepare('SELECT id,dream_trip_id FROM trip_local_concierge_runs WHERE user_id=? ORDER BY observed_at DESC,id DESC LIMIT 12');$stmt->execute([$userId]);
+        foreach($stmt->fetchAll()?:[] as $row){try{$run=$this->run($userId,(int)$row['dream_trip_id'],(int)$row['id']);}catch(Throwable){$run=null;}if($run)return $run;}return null;
     }
 
     private function hydrateRun(array $row,int $userId): array
@@ -138,11 +139,11 @@ final class LocalConciergeService
 
     private function rankSuggestions(array $trip,string $window,array $interests,array $places,array $events,array $weather): array
     {
-        $rows=[];$wet=$this->wetWeather($weather);$eventDate=$this->windowTargetDate($window);
+        $rows=[];$wet=$this->wetWeather($weather);
         foreach((array)($places['items']??[]) as $place){if(!is_array($place))continue;$category=$this->placeCategory((string)($place['category']??$place['type']??''));$score=55;$rating=$this->floatOrNull($place['rating']??null);$reviews=max(0,(int)($place['review_count']??0));if($rating!==null)$score+=(int)round(max(0,$rating-3.5)*12);$score+=min(10,(int)floor(log10(max(1,$reviews))*3));if(in_array($category,$interests,true))$score+=10;if($wet&&$category==='outdoors')$score-=18;if($wet&&in_array($category,['culture','food'],true))$score+=7;if($window==='tonight'&&in_array($category,['drinks','nightlife','food'],true))$score+=8;
             $reason=$this->placeReason($category,$rating,$reviews,$wet,$window);$rows[]=$this->suggestion('place',(string)($place['id']??sha1(json_encode($place))),$place['name']??'Local place',$category,$score,$reason,(string)($place['address']??''),(string)($place['website_url']??$place['maps_url']??''),(string)($places['provider']??'Google Places'),null,null,$rating,$reviews,null);
         }
-        foreach((array)($events['items']??[]) as $event){if(!is_array($event))continue;$date=(string)($event['date']??'');if($eventDate!==''&&$date!==''&&$date!==$eventDate&&$window!=='next_4_hours')continue;$category='events';$score=70+(in_array('events',$interests,true)?10:0);$time=(string)($event['time']??'');if($window==='tonight'&&$time!==''&&$time>='17:00')$score+=8;$reason=trim(implode(' · ',array_filter(['Live event'.($date?' '.$this->dayLabel($date):''),(string)($event['venue']??''),(string)($event['category']??'')])));$price=isset($event['price_min'])&&is_numeric($event['price_min'])?(float)$event['price_min']:null;$rows[]=$this->suggestion('event',(string)($event['id']??sha1(json_encode($event))),$event['name']??'Local event',$category,$score,$reason,trim((string)($event['venue']??'').((!empty($event['address']))?' · '.(string)$event['address']:'')),(string)($event['url']??''),(string)($events['provider']??'Ticketmaster'),$date,$time,null,0,$price);
+        foreach((array)($events['items']??[]) as $event){if(!is_array($event))continue;$date=(string)($event['date']??'');$time=(string)($event['time']??'');if(!$this->eventMatchesWindow($window,$date,$time,$weather))continue;$category='events';$score=70+(in_array('events',$interests,true)?10:0);if($window==='tonight'&&$time!==''&&$time>='17:00')$score+=8;$reason=trim(implode(' · ',array_filter(['Live event'.($date?' '.$this->dayLabel($date):''),(string)($event['venue']??''),(string)($event['category']??'')])));$price=isset($event['price_min'])&&is_numeric($event['price_min'])?(float)$event['price_min']:null;$rows[]=$this->suggestion('event',(string)($event['id']??sha1(json_encode($event))),$event['name']??'Local event',$category,$score,$reason,trim((string)($event['venue']??'').((!empty($event['address']))?' · '.(string)$event['address']:'')),(string)($event['url']??''),(string)($events['provider']??'Ticketmaster'),$date,$time,null,0,$price);
         }
         usort($rows,static fn($a,$b)=>(int)$b['score']<=>(int)$a['score']);return $this->dedupe($rows);
     }
@@ -154,8 +155,30 @@ final class LocalConciergeService
         $known=[];foreach($existing as $s)$known[strtolower((string)($s['title']??''))]=1;$rows=$existing;$wet=$this->wetWeather($weather);
         foreach((array)($report['restaurants']??[]) as $r){if(!is_array($r))continue;$title=trim((string)($r['name']??''));if($title===''||isset($known[strtolower($title)]))continue;$rating=$this->floatOrNull($r['rating']??null);$reviews=(int)($r['review_count']??0);$score=52+(in_array('food',$interests,true)?8:0)+($wet?4:0);$rows[]=$this->suggestion('saved_research','restaurant:'.sha1($title),$title,'food',$score,'Saved destination research · recheck hours and availability before going.',trim((string)($r['area']??'')),(string)($r['website_url']??$r['source_url']??''),'Saved destination research',null,null,$rating,$reviews,null);$known[strtolower($title)]=1;}
         $dayTrips=$report['day_trips']??[];if(isset($dayTrips['day_trips']))$dayTrips=$dayTrips['day_trips'];foreach((array)$dayTrips as $r){if(!is_array($r))continue;$title=trim((string)($r['name']??''));if($title===''||isset($known[strtolower($title)]))continue;$score=48+(in_array('outdoors',$interests,true)?7:0)-($wet?10:0);$rows[]=$this->suggestion('saved_research','daytrip:'.sha1($title),$title,'outdoors',$score,'Saved destination research · verify current hours, conditions, and travel time.',(string)($r['distance']??''),(string)($r['website_url']??$r['source_url']??''),'Saved destination research',null,null,null,0,null);$known[strtolower($title)]=1;}
-        foreach((array)($report['shows']??[]) as $r){if(!is_array($r))continue;$title=trim((string)($r['name']??''));if($title===''||isset($known[strtolower($title)]))continue;$date='';if(!empty($r['starts_at'])){$ts=strtotime((string)$r['starts_at']);if($ts)$date=date('Y-m-d',$ts);}$rows[]=$this->suggestion('saved_research','show:'.sha1($title),$title,'events',50+(in_array('events',$interests,true)?8:0),'Saved destination research · verify event status and ticket availability.',(string)($r['venue']??''),(string)($r['ticket_url']??$r['source_url']??''),'Saved destination research',$date,null,null,0,null);$known[strtolower($title)]=1;}
+        foreach((array)($report['shows']??[]) as $r){if(!is_array($r))continue;$title=trim((string)($r['name']??''));if($title===''||isset($known[strtolower($title)]))continue;$date='';$time='';if(!empty($r['starts_at'])){$ts=strtotime((string)$r['starts_at']);if($ts){$date=date('Y-m-d',$ts);$time=date('H:i',$ts);}}if(!$this->eventMatchesWindow($window,$date,$time,$weather))continue;$rows[]=$this->suggestion('saved_research','show:'.sha1($title),$title,'events',50+(in_array('events',$interests,true)?8:0),'Saved destination research · verify event status and ticket availability.',(string)($r['venue']??''),(string)($r['ticket_url']??$r['source_url']??''),'Saved destination research',$date,$time,null,0,null);$known[strtolower($title)]=1;}
         usort($rows,static fn($a,$b)=>(int)$b['score']<=>(int)$a['score']);return $this->dedupe($rows);
+    }
+
+    private function eventMatchesWindow(string $window,string $date,string $time,array $weather): bool
+    {
+        $date=$this->dateOrNull($date)??'';$time=$this->timeOrNull($time)??'';$tz=$this->timezone((string)($weather['timezone']??''));$now=new DateTimeImmutable('now',$tz);$today=$now->format('Y-m-d');$tomorrow=$now->modify('+1 day')->format('Y-m-d');
+        if($window==='tomorrow')return $date===$tomorrow;
+        if($date!==$today)return false;
+        if($window==='today'){if($time==='')return true;$event=$this->eventDateTime($date,$time,$tz);return $event!==null&&$event>=$now->modify('-1 hour');}
+        if($time==='')return false;$event=$this->eventDateTime($date,$time,$tz);if(!$event)return false;
+        if($window==='tonight'){$start=(new DateTimeImmutable($today.' 17:00:00',$tz));if($now>$start)$start=$now->modify('-15 minutes');$end=new DateTimeImmutable($today.' 23:59:59',$tz);return $event>=$start&&$event<=$end;}
+        if($window==='next_4_hours')return $event>=$now->modify('-15 minutes')&&$event<=$now->modify('+4 hours');
+        return $event>=$now->modify('-30 minutes')&&$event<=$now->modify('+2 hours');
+    }
+
+    private function eventDateTime(string $date,string $time,DateTimeZone $tz): ?DateTimeImmutable
+    {
+        $dt=DateTimeImmutable::createFromFormat('!Y-m-d H:i',$date.' '.$time,$tz);return $dt?:null;
+    }
+
+    private function timezone(string $name): DateTimeZone
+    {
+        try{return $name!==''?new DateTimeZone($name):new DateTimeZone(date_default_timezone_get());}catch(Throwable){return new DateTimeZone(date_default_timezone_get());}
     }
 
     private function suggestion(string $kind,string $externalId,mixed $title,string $category,int $score,string $reason,string $address,string $url,string $provider,?string $date,?string $time,?float $rating,int $reviews,?float $price): array
