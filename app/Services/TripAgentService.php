@@ -16,12 +16,19 @@ final class TripAgentService
         $agentType=$this->agent($agentType);if(!db_table_exists('trip_agent_messages'))return [];$this->assertTrip($userId,$tripId);$limit=max(1,min(100,$limit));$stmt=$this->pdo->prepare("SELECT id,agent_type,role,body,metadata_json,created_at FROM trip_agent_messages WHERE user_id=? AND dream_trip_id=? AND agent_type=? ORDER BY id DESC LIMIT $limit");$stmt->execute([$userId,$tripId,$agentType]);$rows=array_reverse($stmt->fetchAll()?:[]);foreach($rows as &$row){$row['metadata']=json_decode((string)($row['metadata_json']??''),true)?:[];unset($row['metadata_json']);}unset($row);return $rows;
     }
 
-    public function send(int $userId,int $tripId,string $agentType,string $message): array
+    public function send(int $userId,int $tripId,string $agentType,string $message,?string $idempotencyKey=null): array
     {
-        $agentType=$this->agent($agentType);$message=trim($message);if($message==='')throw new InvalidArgumentException('Ask the trip agent something first.');if(!db_table_exists('trip_agent_messages'))throw new RuntimeException('Run System Upgrade before using trip agents.');$trip=$this->assertTrip($userId,$tripId);$dashboard=(new TripIntelligenceService($this->pdo))->dashboard($userId,$tripId);
-        $this->insert($userId,$tripId,$agentType,'user',$message,null,['kind'=>'user']);$system=$this->systemPrompt($agentType,$dashboard);$context=$this->datasetContext($agentType,$dashboard);$recent=$this->history($userId,$tripId,$agentType,12);$transcript=[];foreach($recent as $row){if(($row['metadata']['kind']??'')==='proactive')continue;$transcript[]=strtoupper((string)$row['role']).': '.(string)$row['body'];}$input="TRIP DATA\n".$context."\n\nRECENT ".strtoupper($agentType)." AGENT CONVERSATION\n".implode("\n",array_slice($transcript,-10))."\n\nUSER REQUEST\n".$message;
+        $agentType=$this->agent($agentType);$message=trim($message);if($message==='')throw new InvalidArgumentException('Ask the trip agent something first.');if(!db_table_exists('trip_agent_messages'))throw new RuntimeException('Run System Upgrade before using trip agents.');$trip=$this->assertTrip($userId,$tripId);
+        $userFingerprint=null;$assistantFingerprint=null;
+        if($idempotencyKey!==null&&trim($idempotencyKey)!==''){
+            $base=hash('sha256',trim($idempotencyKey));$userFingerprint=hash('sha256',$base.'|user');$assistantFingerprint=hash('sha256',$base.'|assistant');
+            $existing=$this->byFingerprint($userId,$tripId,$agentType,$assistantFingerprint);
+            if($existing){$meta=json_decode((string)($existing['metadata_json']??''),true)?:[];return ['agent_type'=>$agentType,'message'=>(string)$existing['body'],'data_health'=>$meta['data_health']??[],'reused'=>true];}
+        }
+        $dashboard=(new TripIntelligenceService($this->pdo))->dashboard($userId,$tripId);
+        $this->insert($userId,$tripId,$agentType,'user',$message,$userFingerprint,['kind'=>'user','job_key'=>$idempotencyKey]);$system=$this->systemPrompt($agentType,$dashboard);$context=$this->datasetContext($agentType,$dashboard);$recent=$this->history($userId,$tripId,$agentType,12);$transcript=[];foreach($recent as $row){if(($row['metadata']['kind']??'')==='proactive')continue;$transcript[]=strtoupper((string)$row['role']).': '.(string)$row['body'];}$input="TRIP DATA\n".$context."\n\nRECENT ".strtoupper($agentType)." AGENT CONVERSATION\n".implode("\n",array_slice($transcript,-10))."\n\nUSER REQUEST\n".$message;
         $reply=(new AiProviderService($this->pdo))->generateText($system,$input,$userId,'trip_agent_'.$agentType,1100);if(!$reply)$reply=$this->fallback($agentType,$dashboard);
-        $health=$this->live->scopedHealth($agentType,$dashboard);$this->insert($userId,$tripId,$agentType,'assistant',$reply,null,['kind'=>'agent_result','data_scope'=>$this->scope($agentType),'data_health'=>$health]);return ['agent_type'=>$agentType,'message'=>$reply,'data_health'=>$health];
+        $health=$this->live->scopedHealth($agentType,$dashboard);$this->insert($userId,$tripId,$agentType,'assistant',$reply,$assistantFingerprint,['kind'=>'agent_result','data_scope'=>$this->scope($agentType),'data_health'=>$health,'job_key'=>$idempotencyKey]);return ['agent_type'=>$agentType,'message'=>$reply,'data_health'=>$health,'reused'=>false];
     }
 
     public function recordProactive(int $userId,int $tripId,array $dashboard): void
@@ -82,9 +89,14 @@ final class TripAgentService
         $trip=(new DreamService($this->pdo))->get($userId,$tripId,false);if(!$trip)throw new RuntimeException('Trip not found.');return $trip;
     }
 
+    private function byFingerprint(int $userId,int $tripId,string $agentType,string $fingerprint): ?array
+    {
+        $stmt=$this->pdo->prepare('SELECT * FROM trip_agent_messages WHERE user_id=? AND dream_trip_id=? AND agent_type=? AND fingerprint=? LIMIT 1');$stmt->execute([$userId,$tripId,$agentType,$fingerprint]);return $stmt->fetch()?:null;
+    }
+
     private function insert(int $userId,int $tripId,string $agentType,string $role,string $body,?string $fingerprint,array $metadata): void
     {
-        $stmt=$this->pdo->prepare('INSERT INTO trip_agent_messages (dream_trip_id,user_id,agent_type,role,body,fingerprint,metadata_json) VALUES (?,?,?,?,?,?,?)');$stmt->execute([$tripId,$userId,$agentType,$role,$this->clip($body,12000),$fingerprint,json_encode($metadata,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)]);
+        $verb=$fingerprint!==null?'INSERT IGNORE':'INSERT';$stmt=$this->pdo->prepare($verb.' INTO trip_agent_messages (dream_trip_id,user_id,agent_type,role,body,fingerprint,metadata_json) VALUES (?,?,?,?,?,?,?)');$stmt->execute([$tripId,$userId,$agentType,$role,$this->clip($body,12000),$fingerprint,json_encode($metadata,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)]);
     }
 
     private function agent(string $value): string
