@@ -88,6 +88,9 @@ jobs:
       - name: Check Booking + Trip Readiness contract
         run: php tests/trip_booking_readiness_contract.php
 
+      - name: Check Travel Day Operations contract
+        run: php tests/travel_day_operations_contract.php
+
       - name: Check JavaScript syntax
         shell: bash
         run: |
@@ -103,6 +106,8 @@ jobs:
           node --check assets/brain-activity.js
           node --check assets/trip-command-center.js
           node --check assets/trip-booking-summary.js
+          node --check assets/travel-mode.js
+          node --check assets/travel-mode-offline.js
 
       - name: Verify ordered migrations
         shell: bash
@@ -120,8 +125,9 @@ jobs:
           test -f db/040_trip_agent_action_queue.sql
           test -f db/041_trip_action_execution_approval.sql
           test -f db/042_trip_booking_readiness.sql
+          test -f db/043_travel_day_operations.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 42
+          test "$COUNT" -eq 43
 
       - name: Validate WebP media
         shell: bash
@@ -155,6 +161,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'api/trip-agent-jobs.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'api/trip-command-center.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'api/trip-bookings.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'api/travel-operations.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'photos.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'dream.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'dream-new.php'
@@ -163,6 +170,8 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-action.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-execution.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'trip-bookings.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'travel-mode.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'travel-mode-offline.html'
           unzip -l vacation-brain-deploy.zip | grep -q 'watches.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'bin/run-travel-watches.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'bin/run-trip-agent-jobs.php'
@@ -171,6 +180,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'destination-edit.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'destination-claim.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'destination-go.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'service-worker.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/AccountTypeService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/DestinationOwnerService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TravelDataProviderService.php'
@@ -182,6 +192,8 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentActionService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentExecutionService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripBookingService.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripBookingReminderService.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripTravelOperationsService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripCommandCenterService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentJobService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripAgentAutomationService.php'
@@ -208,6 +220,9 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-command-center.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-bookings.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/trip-booking-summary.js'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-mode.css'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-mode.js'
+          unzip -l vacation-brain-deploy.zip | grep -q 'assets/travel-mode-offline.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/shell-commerce.js'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/landing-merch-fix.css'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/dashboard-trips.css'
@@ -226,6 +241,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'db/040_trip_agent_action_queue.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/041_trip_action_execution_approval.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'db/042_trip_booking_readiness.sql'
+          unzip -l vacation-brain-deploy.zip | grep -q 'db/043_travel_day_operations.sql'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-front.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-hoodie-back.webp'
           unzip -l vacation-brain-deploy.zip | grep -q 'assets/merch/palm-springs-trucker-hat.webp'
