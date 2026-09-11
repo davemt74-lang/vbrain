@@ -18,7 +18,7 @@ final class TripAgentExecutionService
             && (new TripAgentJobService($this->pdo))->ready();
     }
 
-    public function acceptAndStart(int $userId,int $tripId,int $actionId): array
+    public function acceptAndStart(int $userId,int $tripId,int $actionId,?array $autonomyAudit=null): array
     {
         $this->requireReady();$action=$this->action($userId,$tripId,$actionId);
         if(in_array((string)$action['status'],['dismissed','completed','superseded'],true))throw new DomainException('This Next Move is no longer active.');
@@ -33,6 +33,7 @@ final class TripAgentExecutionService
             if(db_column_exists('trip_agent_action_executions','authorization_source'))$this->pdo->prepare('UPDATE trip_agent_action_executions SET authorization_source=NULL WHERE id=?')->execute([$executionId]);
             if($isNew)$this->event($executionId,$actionId,$userId,$tripId,'recommended',['title'=>$action['title'],'agent_type'=>$agent]);
             $this->event($executionId,$actionId,$userId,$tripId,'accepted',['title'=>$action['title'],'agent_type'=>$agent]);$this->event($executionId,$actionId,$userId,$tripId,'queued',['reason'=>'Awaiting specialist execution slot']);
+            $this->autonomyDecision($autonomyAudit,$executionId,$actionId,$userId,$tripId,'started');
             $this->pdo->commit();
         }catch(Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
         try{$this->dispatchExecution($executionId);}catch(DomainException $e){}catch(Throwable $e){error_log('Trip Action immediate dispatch deferred for execution '.$executionId.': '.$this->clip($e->getMessage(),500));}
@@ -100,7 +101,7 @@ final class TripAgentExecutionService
      * transaction approval. Hard safety is repeated here so policy-engine bugs or
      * future callers cannot turn autonomy into provider/payment authority.
      */
-    public function applyAutonomous(int $userId,int $tripId,int $actionId,string $policyRef=''): array
+    public function applyAutonomous(int $userId,int $tripId,int $actionId,string $policyRef='',?array $autonomyAudit=null): array
     {
         $this->requireReady();if(!db_column_exists('trip_agent_action_executions','authorization_source'))throw new RuntimeException('Run System Upgrade to enable autonomous planning authorization.');$this->pdo->beginTransaction();
         try{
@@ -114,7 +115,9 @@ final class TripAgentExecutionService
             if(!str_starts_with((string)($proposal['source_external_id']??''),'trip-action:'))throw new DomainException('Proposal provenance is not the canonical Trip Action path.');
             if(!in_array((string)($proposal['item_type']??'idea'),self::AUTONOMY_ITEMS,true))throw new DomainException('Flight, lodging, merchandise, and unknown item types cannot be auto-applied.');
             $executionId=(int)$row['id'];$this->pdo->prepare("UPDATE trip_agent_action_executions SET status='applied',authorization_source='autonomy_policy',approved_at=NULL,applied_at=NOW(),error_message=NULL WHERE id=?")->execute([$executionId]);
-            $this->event($executionId,$actionId,$userId,$tripId,'policy_authorized',['proposal_type'=>$proposalType,'policy_ref'=>$this->clip($policyRef,180)]);$this->applyProposal($userId,$tripId,$proposalType,$proposal);$this->pdo->prepare("UPDATE trip_agent_action_executions SET status='completed',completed_at=NOW(),updated_at=NOW() WHERE id=?")->execute([$executionId]);$this->pdo->prepare("UPDATE trip_agent_actions SET status='completed',completed_at=NOW(),updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?")->execute([$actionId,$userId,$tripId]);$this->event($executionId,$actionId,$userId,$tripId,'applied',['proposal_type'=>$proposalType,'authorization_source'=>'autonomy_policy']);$this->event($executionId,$actionId,$userId,$tripId,'completed',['source'=>'autonomy_policy']);$this->pdo->commit();
+            $this->event($executionId,$actionId,$userId,$tripId,'policy_authorized',['proposal_type'=>$proposalType,'policy_ref'=>$this->clip($policyRef,180)]);$this->applyProposal($userId,$tripId,$proposalType,$proposal);$this->pdo->prepare("UPDATE trip_agent_action_executions SET status='completed',completed_at=NOW(),updated_at=NOW() WHERE id=?")->execute([$executionId]);$this->pdo->prepare("UPDATE trip_agent_actions SET status='completed',completed_at=NOW(),updated_at=NOW() WHERE id=? AND user_id=? AND dream_trip_id=?")->execute([$actionId,$userId,$tripId]);$this->event($executionId,$actionId,$userId,$tripId,'applied',['proposal_type'=>$proposalType,'authorization_source'=>'autonomy_policy']);$this->event($executionId,$actionId,$userId,$tripId,'completed',['source'=>'autonomy_policy']);
+            $this->autonomyDecision($autonomyAudit,$executionId,$actionId,$userId,$tripId,'applied');
+            $this->pdo->commit();
         }catch(Throwable $e){if($this->pdo->inTransaction())$this->pdo->rollBack();throw $e;}
         return $this->executionForAction($userId,$tripId,$actionId)??[];
     }
@@ -143,7 +146,7 @@ final class TripAgentExecutionService
 
     private function createProposal(int $executionId,string $resultJson): bool
     {
-        $stmt=$this->pdo->prepare("SELECT e.*,a.title,a.body,a.action_kind,a.target_tab,a.suggestion_key,a.metadata_json action_metadata,a.status action_status FROM trip_agent_action_executions e JOIN trip_agent_actions a ON a.id=e.action_id WHERE e.id=? LIMIT 1");$stmt->execute([$executionId]);$row=$stmt->fetch();if(!$row||$row['status']!=='agent_working')return false;if((string)$row['action_status']!=='accepted'){$this->cancelStale($row,'Next Move is no longer accepted.');return false;}$decoded=json_decode($resultJson,true);$agentOutput=$this->clip((string)($decoded['message']??''),6000);$proposal=$this->proposal($row,$agentOutput);$json=$this->json($proposal['data']);$update=$this->pdo->prepare("UPDATE trip_agent_action_executions SET status='awaiting_approval',proposal_type=?,proposal_json=?,agent_output=?,proposed_at=NOW(),error_message=NULL,updated_at=NOW() WHERE id=? AND status='agent_working'");$update->execute([$proposal['type'],$json,$agentOutput?:null,$executionId]);if($update->rowCount()!==1)return false;$this->event($executionId,(int)$row['action_id'],(int)$row['user_id'],(int)$row['dream_trip_id'],'proposal_ready',['proposal_type'=>$proposal['type'],'title'=>$proposal['data']['title']]);try{(new NotificationService($this->pdo))->create((int)$row['user_id'],'trip_action_approval','Trip change ready for approval',(string)$proposal['data']['title'],app_url('dream-trip.php?id='.(int)$row['dream_trip_id'].'&tab=overview#next-moves'),null,null,'trip-action-execution:'.$executionId.':proposal');}catch(Throwable $e){}return true;
+        $stmt=$this->pdo->prepare("SELECT e.*,a.title,a.body,a.action_kind,a.target_tab,a.suggestion_key,a.metadata_json action_metadata,a.status action_status FROM trip_agent_action_executions e JOIN trip_agent_actions a ON a.id=e.action_id WHERE e.id=? LIMIT 1");$stmt->execute([$executionId]);$row=$stmt->fetch();if(!$row||$row['status']!=='agent_working')return false;if((string)$row['action_status']!=='accepted'){$this->cancelStale($row,'Next Move is no longer accepted.');return false;}$decoded=json_decode($resultJson,true);$agentOutput=$this->clip((string)($decoded['message']??''),6000);$proposal=$this->proposal($row,$agentOutput);$json=$this->json($proposal['data']);$update=$this->pdo->prepare("UPDATE trip_agent_action_executions SET status='awaiting_approval',proposal_type=?,proposal_json=?,agent_output=?,proposed_at=NOW(),error_message=NULL,updated_at=NOW() WHERE id=? AND status='agent_working'");$update->execute([$proposal['type'],$json,$agentOutput?:null,$executionId]);if($update->rowCount()!==1)return false;$this->event($executionId,(int)$row['action_id'],(int)$row['user_id'],(int)$row['dream_trip_id'],'proposal_ready',['proposal_type'=>$proposal['type'],'title'=>$proposal['data']['title']]);try{(new NotificationService($this->pdo))->create((int)$row['user_id'],'trip_action_approval','Trip change proposal ready',(string)$proposal['data']['title'],app_url('dream-trip.php?id='.(int)$row['dream_trip_id'].'&tab=overview#next-moves'),null,null,'trip-action-execution:'.$executionId.':proposal');}catch(Throwable $e){}return true;
     }
 
     private function proposal(array $row,string $agentOutput): array
@@ -191,6 +194,12 @@ final class TripAgentExecutionService
     private function event(int $executionId,int $actionId,int $userId,int $tripId,string $type,array $detail): void
     {
         if($executionId<1)return;$this->pdo->prepare('INSERT INTO trip_agent_action_events (execution_id,action_id,user_id,dream_trip_id,event_type,detail_json) VALUES (?,?,?,?,?,?)')->execute([$executionId,$actionId,$userId,$tripId,$type,$this->json($detail)]);
+    }
+
+    private function autonomyDecision(?array $audit,int $executionId,int $actionId,int $userId,int $tripId,string $type): void
+    {
+        if(!$audit||!db_table_exists('trip_autonomy_decisions'))return;$key=strtolower(trim((string)($audit['decision_key']??'')));if(!preg_match('/^[a-f0-9]{64}$/',$key))throw new RuntimeException('Autonomy audit key is invalid.');$proposalType=trim((string)($audit['proposal_type']??''));if($proposalType==='')$proposalType=null;$amount=array_key_exists('estimated_amount',$audit)&&is_numeric($audit['estimated_amount'])?max(0,(float)$audit['estimated_amount']):null;$reason=$this->clip((string)($audit['reason']??'Standing autonomy policy decision.'),700);$policy=is_array($audit['policy']??null)?$audit['policy']:[];$detail=is_array($audit['detail']??null)?$audit['detail']:[];
+        $sql="INSERT INTO trip_autonomy_decisions (user_id,dream_trip_id,action_id,execution_id,decision_key,decision_type,proposal_type,reason,estimated_amount,policy_json,detail_json) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE decision_key=VALUES(decision_key)";$this->pdo->prepare($sql)->execute([$userId,$tripId,$actionId,$executionId,$key,$type,$proposalType,$reason,$amount,$this->json($policy),$this->json($detail)]);
     }
 
     private function validDate(string $value): ?string
