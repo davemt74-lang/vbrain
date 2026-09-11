@@ -17,5 +17,5 @@ $js=$read('assets/trip-command-center.js');foreach(['data-vb-command-center','da
 
 $css=$read('assets/trip-command-center.css');foreach(['vb-command-center','vb-command-stats','vb-command-grid','vb-command-attention','vb-command-trip','vb-command-agent-state','vb-risk-level','vb-command-handoff-row','@media(max-width:680px)'] as $needle){if(strpos($css,$needle)===false){fwrite(STDERR,"Command Center styling missing {$needle}\n");exit(1);}}
 
-$dream=$read('dream.php');foreach(["'operations'=>'Command Center'","$activeView==='operations'",'trip-command-center.php','data-vb-command-config','api/trip-command-center.php','trip-command-center.js'] as $needle){if(strpos($dream,$needle)===false){fwrite(STDERR,"Command Center Plan Trip mount missing {$needle}\n");exit(1);}}
+$dream=$read('dream.php');foreach(["'operations'=>'Command Center'",'$activeView===\'operations\'','trip-command-center.php','data-vb-command-config','api/trip-command-center.php','trip-command-center.js'] as $needle){if(strpos($dream,$needle)===false){fwrite(STDERR,"Command Center Plan Trip mount missing {$needle}\n");exit(1);}}
 $bootstrap=$read('app/bootstrap.php');if(strpos($bootstrap,"/Services/TripCommandCenterService.php")===false){fwrite(STDERR,"TripCommandCenterService is not loaded.\n");exit(1);}echo "Trip Command Center contract OK\n";
