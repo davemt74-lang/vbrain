@@ -13,8 +13,14 @@ try{
         $completed=$service->approveAndApply($userId,$tripId,$actionId,$_POST);
         if(($completed['proposal_type']??'')==='booking_handoff'){
             $bookingService=new TripBookingService($pdo);
-            if($bookingService->ready()){$bookingService->syncApprovedHandoff($userId,$tripId,$actionId);flash('success','Approved. Vacation Brain saved this as Ready to Book. Confirm live availability, final price, terms, and payment with the provider before marking it booked.');}
-            else flash('success','Approved. Run System Upgrade to add this booking handoff to Trip Readiness.');
+            if($bookingService->ready()){
+                $booking=$bookingService->syncApprovedHandoff($userId,$tripId,$actionId);
+                if($booking){
+                    $bookingActionService=new TripBookingActionService($pdo);
+                    if($bookingActionService->ready())$bookingActionService->ensureHandoffIntent($userId,$tripId,(int)$booking['id'],$actionId,(int)($completed['id']??0)?:null);
+                }
+                flash('success','Approved. Vacation Brain saved this as Ready to Book. The provider transaction still requires its own locked quote and explicit approval before checkout opens.');
+            }else flash('success','Approved. Run System Upgrade to add this booking handoff to Trip Readiness.');
         }else flash('success','Approved. Vacation Brain applied the proposed trip change and completed the Next Move.');
     }
     elseif($command==='reject'){$service->reject($userId,$tripId,$actionId);flash('success','Proposal rejected. Vacation Brain will not apply that change.');}
