@@ -4,6 +4,7 @@
 <?php if(!$footerUser):?><footer class="site-footer"><div class="shell footer-shell"><div><strong>Vacation Brain</strong><div class="muted small">Daydream more. Work less.</div></div><div class="footer-copy"><?=e(diagnosis_disclaimer())?></div></div></footer><?php endif;?>
 <link rel="stylesheet" href="<?=e(app_url('assets/shell-commerce.css'))?>">
 <?php if($footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-agent-tabs.css'))?>"><?php endif;?>
+<?php if($footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-bookings.css'))?>" data-vb-booking-style><?php endif;?>
 <?php if($footerUser):?><link rel="stylesheet" href="<?=e(app_url('assets/travel-watches.css'))?>" data-vb-watch-style><?php endif;?>
 <?php if($footerUser && in_array($footerPage,['today.php','dream-trip.php'],true)):?><link rel="stylesheet" href="<?=e(app_url('assets/brain-activity.css'))?>" data-vb-brain-style><?php endif;?>
 <?php if($footerUser && $footerPage==='today.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-command-center.css'))?>" data-vb-command-style><?php endif;?>
@@ -32,6 +33,14 @@
     'new_trip_url'=>app_url('dream-new.php'),
 ],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
 <script src="<?=e(app_url('assets/trip-command-center.js'))?>"></script>
+<?php endif;?>
+<?php if($footerUser && $footerPage==='dream-trip.php' && (int)($_GET['id']??0)>0): $footerTripId=(int)$_GET['id'];?>
+<script type="application/json" data-vb-booking-summary-config><?=json_encode([
+    'api'=>app_url('api/trip-bookings.php'),
+    'trip_id'=>$footerTripId,
+    'manage_url'=>app_url('trip-bookings.php?id='.$footerTripId),
+],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?></script>
+<script src="<?=e(app_url('assets/trip-booking-summary.js'))?>"></script>
 <?php endif;?>
 <?php if($footerUser && $footerPage!=='match-chat.php'):
 $footerAgentPrefill=(string)($agentComposerPrefill??'');
