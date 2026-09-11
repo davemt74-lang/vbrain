@@ -122,7 +122,20 @@ final class TripAgentJobService
 
     private function notifyComplete(array $job,int $jobId,bool $failed,?string $error): void
     {
-        try{$agent=$this->label((string)$job['agent_type']);$tripId=(int)$job['dream_trip_id'];$url=app_url('dream-trip.php?id='.$tripId.'&tab='.rawurlencode((string)$job['agent_type']).'#agent-results');(new NotificationService($this->pdo))->create((int)$job['user_id'],'trip_agent_job',$failed?$agent.' needs attention':$agent.' finished',$failed?'Vacation Brain could not finish this task. '.$this->clip((string)$error,300):'New trip-agent results are ready to review.',$url,null,null,'trip-agent-job:'.$jobId.':'.($failed?'failed':'completed'));}catch(Throwable $e){}
+        try{
+            $agentType=(string)$job['agent_type'];$agent=$this->label($agentType);$tripId=(int)$job['dream_trip_id'];$batchId=(int)($job['batch_id']??0);$scope=$this->batchScope($batchId);$url=app_url('dream-trip.php?id='.$tripId.'&tab='.rawurlencode($agentType).'#agent-results');
+            if($scope==='automation'&&$agentType!=='overview')return;
+            if($scope==='automation'){
+                $title=$failed?'Vacation Brain watch follow-up needs attention':'Vacation Brain reviewed a trip change';$body=$failed?'The automatic Overview Agent could not finish the watch follow-up. '.$this->clip((string)$error,260):'Your trip agents reviewed a meaningful watch alert from one shared snapshot. The Overview Agent has prioritized what changed and what to do next.';$key='trip-agent-automation-batch:'.$batchId.':'.($failed?'failed':'completed');
+                (new NotificationService($this->pdo))->create((int)$job['user_id'],'trip_agent_automation',$title,$body,$url,null,null,$key);return;
+            }
+            (new NotificationService($this->pdo))->create((int)$job['user_id'],'trip_agent_job',$failed?$agent.' needs attention':$agent.' finished',$failed?'Vacation Brain could not finish this task. '.$this->clip((string)$error,300):'New trip-agent results are ready to review.',$url,null,null,'trip-agent-job:'.$jobId.':'.($failed?'failed':'completed'));
+        }catch(Throwable $e){}
+    }
+
+    private function batchScope(int $batchId): string
+    {
+        if($batchId<1||!db_table_exists('trip_agent_batches'))return '';$stmt=$this->pdo->prepare('SELECT scope FROM trip_agent_batches WHERE id=? LIMIT 1');$stmt->execute([$batchId]);return (string)($stmt->fetchColumn()?:'');
     }
 
     private function assertCapacity(int $userId,int $additional): void
