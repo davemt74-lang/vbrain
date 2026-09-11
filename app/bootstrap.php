@@ -73,6 +73,7 @@ require_once __DIR__ . '/Services/VacationAgentService.php';
 require_once __DIR__ . '/Services/NotificationService.php';
 require_once __DIR__ . '/Services/TravelWatchService.php';
 require_once __DIR__ . '/Services/TripAgentBatchService.php';
+require_once __DIR__ . '/Services/TripAgentActionService.php';
 require_once __DIR__ . '/Services/TripAgentJobService.php';
 require_once __DIR__ . '/Services/TripAgentAutomationService.php';
 require_once __DIR__ . '/Services/VacationBrainActivityService.php';
