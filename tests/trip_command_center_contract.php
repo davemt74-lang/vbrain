@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-$root=dirname(__DIR__);$files=['app/Services/TripCommandCenterService.php','api/trip-command-center.php','partials/trip-command-center.php','assets/trip-command-center.css','assets/trip-command-center.js','partials/footer.php','app/bootstrap.php'];
+$root=dirname(__DIR__);$files=['app/Services/TripCommandCenterService.php','api/trip-command-center.php','partials/trip-command-center.php','assets/trip-command-center.css','assets/trip-command-center.js','dream.php','app/bootstrap.php'];
 foreach($files as $file){if(!is_file($root.'/'.$file)){fwrite(STDERR,"Missing Trip Command Center file: {$file}\n");exit(1);}}
 $read=static fn(string $file): string => file_get_contents($root.'/'.$file) ?: '';
 
@@ -13,10 +13,9 @@ $api=$read('api/trip-command-center.php');foreach(['require_auth','Cache-Control
 
 $ui=$read('partials/trip-command-center.php');foreach(['data-vb-command-center','Trip Command Center','Needs you today','Trips in motion','Agent operations','Weather + budget risks','Booking handoffs','Recent watch alerts','Live confirmation required','external bookings require live provider confirmation','data-command-attention','data-command-trips','data-command-agents','data-command-risks','data-command-handoffs','data-command-alerts'] as $needle){if(strpos($ui,$needle)===false){fwrite(STDERR,"Command Center UI missing {$needle}\n");exit(1);}}
 
-$js=$read('assets/trip-command-center.js');foreach(['data-vb-command-center','data-vb-command-config','.vb-local-section','insertAdjacentElement(\'afterend\',root)','active_executions','15000','60000','data-vb-command-refresh','credentials:\'same-origin\''] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Command Center live client missing {$needle}\n");exit(1);}}if(strpos($js,'Math.random')!==false){fwrite(STDERR,"Command Center must reflect real data, not random state.\n");exit(1);}
+$js=$read('assets/trip-command-center.js');foreach(['data-vb-command-center','data-vb-command-config','active_executions','15000','60000','data-vb-command-refresh','credentials:\'same-origin\''] as $needle){if(strpos($js,$needle)===false){fwrite(STDERR,"Command Center live client missing {$needle}\n");exit(1);}}if(strpos($js,'Math.random')!==false){fwrite(STDERR,"Command Center must reflect real data, not random state.\n");exit(1);}
 
 $css=$read('assets/trip-command-center.css');foreach(['vb-command-center','vb-command-stats','vb-command-grid','vb-command-attention','vb-command-trip','vb-command-agent-state','vb-risk-level','vb-command-handoff-row','@media(max-width:680px)'] as $needle){if(strpos($css,$needle)===false){fwrite(STDERR,"Command Center styling missing {$needle}\n");exit(1);}}
 
-$footer=$read('partials/footer.php');foreach(['trip-command-center.php','trip-command-center.css','data-vb-command-config','api/trip-command-center.php','trip-command-center.js'] as $needle){if(strpos($footer,$needle)===false){fwrite(STDERR,"Command Center Today mount missing {$needle}\n");exit(1);}}$brainPos=strpos($footer,"assets/brain-activity.js");$commandPos=strpos($footer,"assets/trip-command-center.js");if($brainPos===false||$commandPos===false||$commandPos<$brainPos){fwrite(STDERR,"Command Center client must load after Brain Activity so it can keep Local Day Trips first and place Command Center before EEG.\n");exit(1);}
-
+$dream=$read('dream.php');foreach(["'operations'=>'Command Center'",'$activeView===\'operations\'','trip-command-center.php','data-vb-command-config','api/trip-command-center.php','trip-command-center.js'] as $needle){if(strpos($dream,$needle)===false){fwrite(STDERR,"Command Center Plan Trip mount missing {$needle}\n");exit(1);}}
 $bootstrap=$read('app/bootstrap.php');if(strpos($bootstrap,"/Services/TripCommandCenterService.php")===false){fwrite(STDERR,"TripCommandCenterService is not loaded.\n");exit(1);}echo "Trip Command Center contract OK\n";

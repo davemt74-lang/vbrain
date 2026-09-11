@@ -1,8 +1,7 @@
 <?php
 declare(strict_types=1);
 
-$root=dirname(__DIR__);
-$files=['db/045_traveler_memory_graph.sql','app/Services/TravelerMemoryGraphService.php','traveler-memory.php','assets/traveler-memory.css','partials/traveler-memory-summary.php','assets/traveler-memory-summary.css','dream-new.php','app/bootstrap.php','app/Services/DestinationRecommendationService.php','app/Services/VacationAgentService.php','partials/footer.php'];
+$root=dirname(__DIR__);$files=['db/045_traveler_memory_graph.sql','app/Services/TravelerMemoryGraphService.php','traveler-memory.php','assets/traveler-memory.css','partials/traveler-memory-summary.php','assets/traveler-memory-summary.css','dream-new.php','dream.php','app/bootstrap.php','app/Services/DestinationRecommendationService.php','app/Services/VacationAgentService.php'];
 foreach($files as $file){if(!is_file($root.'/'.$file)){fwrite(STDERR,"Missing Traveler Memory Graph file: {$file}\n");exit(1);}}
 $read=static fn(string $file): string => file_get_contents($root.'/'.$file) ?: '';
 $m=$read('db/045_traveler_memory_graph.sql');foreach(['traveler_preference_controls',"ENUM('learn','ignore','suppress')",'correction_note',"'app_version','1.37'"] as $n){if(strpos($m,$n)===false){fwrite(STDERR,"Traveler Memory migration missing {$n}\n");exit(1);}}
@@ -13,7 +12,6 @@ $page=$read('traveler-memory.php');foreach(['require_auth','verify_csrf()','Your
 $seed=$read('dream-new.php');foreach(['memory_id','TravelerMemoryGraphService','nextTripSeed','Do this again, better','Private trip notes were not copied'] as $n){if(strpos($seed,$n)===false){fwrite(STDERR,"Repeat-trip seed missing {$n}\n");exit(1);}}
 $rec=$read('app/Services/DestinationRecommendationService.php');foreach(['TravelerMemoryGraphService','augmentTraits','rerankDestinations','elseif($memory&&$memory->ready())'] as $n){if(strpos($rec,$n)===false){fwrite(STDERR,"Recommendation graph/fallback missing {$n}\n");exit(1);}}
 $agent=$read('app/Services/VacationAgentService.php');foreach(['TravelerMemoryGraphService','agentContext($userId,5)','distinguish diagnosis guesses','never infer private trip notes'] as $n){if(strpos($agent,$n)===false){fwrite(STDERR,"Vacation agent Traveler Memory grounding missing {$n}\n");exit(1);}}
-$footer=$read('partials/footer.php');foreach(['traveler-memory-summary.php','traveler-memory-summary.css'] as $n){if(strpos($footer,$n)===false){fwrite(STDERR,"Dashboard Traveler Memory integration missing {$n}\n");exit(1);}}
+$dream=$read('dream.php');foreach(['traveler-memory-summary.php','assets/traveler-memory-summary.css','Memory & Signals'] as $n){if(strpos($dream,$n)===false){fwrite(STDERR,"Plan Trip Traveler Memory integration missing {$n}\n");exit(1);}}
 $partial=$read('partials/traveler-memory-summary.php');foreach(['dashboardSummary','Open Traveler Memory','completed trip'] as $n){if(strpos($partial,$n)===false){fwrite(STDERR,"Traveler Memory dashboard summary missing {$n}\n");exit(1);}}
-$bootstrap=$read('app/bootstrap.php');if(strpos($bootstrap,"/Services/TravelerMemoryGraphService.php")===false){fwrite(STDERR,"TravelerMemoryGraphService is not loaded.\n");exit(1);}
-echo "Traveler Memory Graph contract OK\n";
+$bootstrap=$read('app/bootstrap.php');if(strpos($bootstrap,"/Services/TravelerMemoryGraphService.php")===false){fwrite(STDERR,"TravelerMemoryGraphService is not loaded.\n");exit(1);}echo "Traveler Memory Graph contract OK\n";
