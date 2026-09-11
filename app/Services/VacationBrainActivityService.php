@@ -273,7 +273,11 @@ final class VacationBrainActivityService
 
     private function channelReason(string $channel,int $score,int $agent24,int $intel24,int $watchCount,int $alertCount,array $trips,array $items): string
     {
-        if($channel==='overview')return $score<20?'Waiting for a trip, destination, watch, or agent task.':$alertCount>0?'Supervising fresh watch alerts and trip activity.':'Coordinating '.(int)$trips['active'].' active trip'.((int)$trips['active']===1?'':'s').' and recent agent work.';
+        if($channel==='overview'){
+            if($score<20)return 'Waiting for a trip, destination, watch, or agent task.';
+            if($alertCount>0)return 'Supervising fresh watch alerts and trip activity.';
+            return 'Coordinating '.(int)$trips['active'].' active trip'.((int)$trips['active']===1?'':'s').' and recent agent work.';
+        }
         if($channel==='itinerary')return (int)$items['total']>0?(int)$items['scheduled'].' of '.(int)$items['total'].' saved items are scheduled.':'No itinerary items are scheduled yet.';
         if($channel==='budget')return (int)$trips['with_budget']>0?'Budget targets are attached to active trip planning.':'Add a trip budget to give this agent more to monitor.';
         if($alertCount>0)return $alertCount.' meaningful watch change'.($alertCount===1?'':'s').' detected in the last 24 hours.';
