@@ -5,7 +5,7 @@ CREATE TABLE traveler_preference_controls (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL,
   signal_key VARCHAR(64) NOT NULL,
-  learning_state ENUM('learn','ignore') NOT NULL DEFAULT 'learn',
+  learning_state ENUM('learn','ignore','suppress') NOT NULL DEFAULT 'learn',
   correction_note VARCHAR(500) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
