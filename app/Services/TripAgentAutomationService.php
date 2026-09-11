@@ -53,7 +53,9 @@ final class TripAgentAutomationService
               FROM travel_watch_events e
               JOIN travel_watches w ON w.id=e.watch_id AND w.user_id=e.user_id
               JOIN dream_trips d ON d.id=w.dream_trip_id AND d.user_id=e.user_id
-              WHERE w.target_type='trip' AND w.is_active=1 AND w.dream_trip_id IS NOT NULL
+              LEFT JOIN trip_agent_automation_triggers existing ON existing.travel_watch_event_id=e.id
+              WHERE existing.id IS NULL
+                AND w.target_type='trip' AND w.is_active=1 AND w.dream_trip_id IS NOT NULL
                 AND e.notified_at IS NOT NULL AND e.data_type IN ('weather','flights','events','places')
                 AND d.status<>'abandoned' AND (d.end_date IS NULL OR d.end_date>=CURDATE())
                 AND e.created_at>=COALESCE((SELECT CAST(meta_value AS DATETIME) FROM app_meta WHERE meta_key='trip_agent_automation_started_at' LIMIT 1),NOW())
