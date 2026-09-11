@@ -8,7 +8,7 @@ try{
     if($_SERVER['REQUEST_METHOD']==='POST'){
         verify_csrf();$action=(string)($_POST['action']??'refresh');
         if($action==='refresh'){
-            $types=preg_split('/\s*,\s*/',(string)($_POST['types']??''),-1,PREG_SPLIT_NO_EMPTY)?:[];$data=$service->refresh($userId,$tripId,$types,true);$dashboard=$service->dashboard($userId,$tripId);(new TripAgentService(db()))->recordProactive($userId,$tripId,$dashboard);echo json_encode(['ok'=>true,'snapshots'=>$data],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
+            $types=preg_split('/\s*,\s*/',(string)($_POST['types']??''),-1,PREG_SPLIT_NO_EMPTY)?:[];$data=$service->refresh($userId,$tripId,$types,true);$dashboard=$service->dashboard($userId,$tripId);$agents=new TripAgentService(db());$agents->recordProactive($userId,$tripId,$dashboard);$overview=(new TripSupervisorService(db()))->overview($userId,$tripId,$dashboard);echo json_encode(['ok'=>true,'snapshots'=>$data,'data_health'=>$overview['data_health']??[],'agent_states'=>$overview['agent_states']??[],'suggestions'=>$overview['suggestions']??[]],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
         }
         if($action==='add_item'){
             $service->addFromSnapshot($userId,$tripId,(string)($_POST['data_type']??''),(string)($_POST['external_id']??''),($_POST['scheduled_date']??'')!==''?(string)$_POST['scheduled_date']:null,($_POST['daypart']??'')!==''?(string)$_POST['daypart']:null);$dashboard=$service->dashboard($userId,$tripId);(new TripAgentService(db()))->recordProactive($userId,$tripId,$dashboard);echo json_encode(['ok'=>true]);exit;
@@ -18,5 +18,5 @@ try{
         }
         throw new InvalidArgumentException('Unknown trip intelligence action.');
     }
-    echo json_encode(['ok'=>true,'dashboard'=>$service->dashboard($userId,$tripId)],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+    $dashboard=$service->dashboard($userId,$tripId);$overview=(new TripSupervisorService(db()))->overview($userId,$tripId,$dashboard);echo json_encode(['ok'=>true,'dashboard'=>$dashboard,'data_health'=>$overview['data_health']??[],'agent_states'=>$overview['agent_states']??[],'suggestions'=>$overview['suggestions']??[]],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 }catch(Throwable $e){http_response_code($e instanceof InvalidArgumentException?422:500);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}
