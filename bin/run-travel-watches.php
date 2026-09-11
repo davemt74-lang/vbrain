@@ -14,11 +14,13 @@ foreach(array_slice($argv,1) as $arg){
 }
 
 try{
-    $service=new TravelWatchService(db());
+    $pdo=db();$service=new TravelWatchService($pdo);
     if(!$service->ready())throw new RuntimeException('Run System Upgrade before starting the travel watch worker.');
     $result=$service->runDue($limit);
+    $operations=new TripTravelOperationsService($pdo);
+    $result['travel_operations']=$operations->ready()?$operations->syncUpcoming($limit):['checked'=>0,'updated'=>0,'errors'=>0,'upgrade_required'=>true];
     fwrite(STDOUT,json_encode($result,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL);
-    exit(($result['errors']??0)>0?2:0);
+    exit((($result['errors']??0)>0||($result['travel_operations']['errors']??0)>0)?2:0);
 }catch(Throwable $e){
     fwrite(STDERR,'Travel watch worker failed: '.$e->getMessage().PHP_EOL);
     exit(1);
