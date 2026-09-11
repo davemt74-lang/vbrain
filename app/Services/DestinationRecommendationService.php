@@ -25,9 +25,13 @@ final class DestinationRecommendationService
     public function recommendations(int $userId,int $limit=3): array
     {
         $traits=(new VacationProfileService($this->pdo))->snapshot($userId)['traits']??[];
-        if(class_exists('TripMemoryService')){$memory=new TripMemoryService($this->pdo);if($memory->ready())$traits=$memory->augmentTraits($userId,$traits);}
+        $graph=class_exists('TravelerMemoryGraphService')?new TravelerMemoryGraphService($this->pdo):null;
+        $memory=class_exists('TripMemoryService')?new TripMemoryService($this->pdo):null;
+        if($graph&&$graph->ready())$traits=$graph->augmentTraits($userId,$traits);
+        elseif($memory&&$memory->ready())$traits=$memory->augmentTraits($userId,$traits);
         $rows=$this->recommendationsFromTraits($traits,max($limit,8));
-        if(class_exists('TripMemoryService')){$memory=$memory??new TripMemoryService($this->pdo);if($memory->ready())$rows=$memory->rerankDestinations($userId,$rows);}
+        if($graph&&$graph->ready())$rows=$graph->rerankDestinations($userId,$rows);
+        elseif($memory&&$memory->ready())$rows=$memory->rerankDestinations($userId,$rows);
         return array_slice($rows,0,max(1,min(8,$limit)));
     }
 
