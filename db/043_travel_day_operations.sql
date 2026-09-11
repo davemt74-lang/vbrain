@@ -41,13 +41,14 @@ CREATE TABLE trip_operation_events (
   CONSTRAINT fk_trip_operation_booking FOREIGN KEY (booking_id) REFERENCES trip_bookings(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Backfill the operational lifecycle conservatively from existing trip dates/status.
+-- Backfill conservatively. A distant booked trip is still in Booking; Ready becomes
+-- prominent only as departure approaches, while trips already in progress are Traveling.
 UPDATE dream_trips
 SET operational_state=CASE
   WHEN status='completed' OR (end_date IS NOT NULL AND end_date<CURDATE()) THEN 'completed'
   WHEN start_date IS NOT NULL AND start_date<=CURDATE() AND (end_date IS NULL OR end_date>=CURDATE()) THEN 'traveling'
-  WHEN status='booked' THEN 'ready'
-  WHEN status IN ('planning','serious') THEN 'booking'
+  WHEN status='booked' AND start_date IS NOT NULL AND start_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL 7 DAY) THEN 'ready'
+  WHEN status='booked' THEN 'booking'
   ELSE 'planning'
 END,
 travel_mode_started_at=CASE
