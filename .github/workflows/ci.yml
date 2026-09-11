@@ -216,6 +216,7 @@ jobs:
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TravelDataProviderService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/LiveTravelDataProviderService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/LiveTravelAgentContextService.php'
+          unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/BookingActionAgentContextService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripIntelligenceService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripLiveIntelligenceService.php'
           unzip -l vacation-brain-deploy.zip | grep -q 'app/Services/TripSupervisorService.php'
