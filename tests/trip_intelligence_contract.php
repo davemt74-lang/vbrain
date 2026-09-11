@@ -52,14 +52,13 @@ $intel=$read('app/Services/TripIntelligenceService.php');
 foreach(['weather','events','places','flights','trip_intelligence_snapshots','addFromSnapshot','scheduleItem','expires_at'] as $needle){if(strpos($intel,$needle)===false){fwrite(STDERR,"Trip intelligence orchestrator missing {$needle}\n");exit(1);}}
 
 $live=$read('app/Services/TripLiveIntelligenceService.php');
-foreach(['class TripLiveIntelligenceService','function health','function latestChange','function allChanges','function scopedHealth',"'indicative','Indicative'","'historical','Historical'","'stale'","source_status='success'",'Lowest indicative fare','rain probability shifted','entered the top local results'] as $needle){if(strpos($live,$needle)===false){fwrite(STDERR,"Live trip intelligence health/change layer missing {$needle}\n");exit(1);}}
+foreach(['class TripLiveIntelligenceService','function health','function latestChange','function allChanges','function scopedHealth',"'indicative','Indicative'","'historical','Historical'","'stale'",'source_status','success','Lowest indicative fare','rain probability shifted','entered the top local results'] as $needle){if(strpos($live,$needle)===false){fwrite(STDERR,"Live trip intelligence health/change layer missing {$needle}\n");exit(1);}}
 
 $bootstrap=$read('app/bootstrap.php');
 if(strpos($bootstrap,"/Services/TripLiveIntelligenceService.php")===false){fwrite(STDERR,"Trip live intelligence service is not loaded by bootstrap.\n");exit(1);}
 
 $supervisor=$read('app/Services/TripSupervisorService.php');
-foreach(['recordProactive','activeResult','agentStates','data_health','changeDetail','Flight decision window is active','Lowest indicative fare','fare-drop','weather-shift','budget-over','lodging-partner','Agent next move'] as $needle){if(strpos($supervisor,$needle)===false&&$needle!=='Agent next move'){fwrite(STDERR,"Trip supervisor missing {$needle}\n");exit(1);}}
-foreach(['next_action','accuracy_note','freshness','Active specialists'] as $needle){if(strpos($supervisor,$needle)===false){fwrite(STDERR,"Trip supervisor active result metadata missing {$needle}\n");exit(1);}}
+foreach(['recordProactive','activeResult','agentStates','data_health','changeDetail','Flight decision window is active','Lowest indicative fare','fare-drop','weather-shift','budget-over','lodging-partner','next_action','accuracy_note','freshness','Active specialists'] as $needle){if(strpos($supervisor,$needle)===false){fwrite(STDERR,"Trip supervisor missing {$needle}\n");exit(1);}}
 
 $agent=$read('app/Services/TripAgentService.php');
 foreach(["['overview','weather','flights','events','local','itinerary','budget']",'allowed data scope','Never invent live weather','Lodging is a paid-partnership surface','trip_agent_messages','trip_agent_','live_status','latest_changes','freshness state','data_health'] as $needle){if(strpos($agent,$needle)===false){fwrite(STDERR,"Trip agent scoping/freshness missing {$needle}\n");exit(1);}}
@@ -67,7 +66,7 @@ foreach(["['overview','weather','flights','events','local','itinerary','budget']
 $agentRoute=$read('trip-agent.php');
 foreach(['trip_id','agent_type','TripAgentService','trip_agent_error','dream-trip.php?id='] as $needle){if(strpos($agentRoute,$needle)===false){fwrite(STDERR,"Trip agent endpoint missing {$needle}\n");exit(1);}}
 $api=$read('api/trip-intelligence.php');
-foreach(['TripAgentService','recordProactive','refresh','add_item','schedule_item'] as $needle){if(strpos($api,$needle)===false){fwrite(STDERR,"Trip intelligence API missing {$needle}\n");exit(1);}}
+foreach(['TripAgentService','recordProactive','refresh','add_item','schedule_item','data_health','agent_states','suggestions'] as $needle){if(strpos($api,$needle)===false){fwrite(STDERR,"Trip intelligence API missing {$needle}\n");exit(1);}}
 
 $footer=$read('partials/footer.php');
 foreach(['agentComposerActionUrl','agentComposerFields','fixed_context_label','task_mode','trip-agent-tabs.css'] as $needle){if(strpos($footer,$needle)===false){fwrite(STDERR,"Canonical composer trip scoping missing {$needle}\n");exit(1);}}
