@@ -21,6 +21,7 @@ $snapshot=$service->ready()?$service->snapshot($userId):['ready'=>false,'history
 $summary=$snapshot['summary'];$success=flash('success');$title='Traveler Memory — Vacation Brain';$pageStyles=['assets/traveler-memory.css'];
 $agentComposerContextLabel='Traveler Memory';$agentComposerPlaceholder='Ask Vacation Brain what it has learned from your trips…';
 function tm_money(?float $value,string $currency): string{return $value===null?'—':$currency.' '.number_format($value,0);}
+function tm_signed_money(?float $value,string $currency): string{if($value===null)return '—';$sign=$value>0?'+':($value<0?'−':'');return $sign.$currency.' '.number_format(abs($value),0);}
 function tm_signal_value(float $v): string{return $v>0?'+'.number_format($v,1):number_format($v,1);}
 require __DIR__.'/partials/header.php';
 ?>
@@ -36,13 +37,21 @@ require __DIR__.'/partials/header.php';
     <article><span>Learned less-of</span><strong><?=count($summary['less_of']??[])?></strong><small><?=e(implode(' · ',array_slice(array_map(fn($s)=>(string)$s['label'],$summary['less_of']??[]),0,2))?:'No strong avoid signals yet')?></small></article>
   </section>
 
-  <section class="tm-panel" id="dna"><div class="tm-section-head"><div><span class="eyebrow">Traveler DNA</span><h2>What Vacation Brain thinks it knows.</h2><p>Diagnosis is a starting hypothesis. Completed trips add behavioral evidence. You stay in control of what gets learned.</p></div></div>
+  <section class="tm-panel" id="dna"><div class="tm-section-head"><div><span class="eyebrow">Traveler DNA</span><h2>What Vacation Brain thinks it knows.</h2><p>Diagnosis is a starting hypothesis. Completed trips add behavioral evidence. You stay in control of both sources.</p></div></div>
     <div class="tm-dna-list">
-      <?php foreach(array_slice($snapshot['dna']??[],0,18) as $row):$learned=$row['learned_value'];$ignored=!empty($row['ignored']);?>
-      <article class="tm-dna-row <?=$ignored?'is-ignored':''?>">
+      <?php foreach(array_slice($snapshot['dna']??[],0,18) as $row):$learned=$row['learned_value'];$state=(string)($row['control_state']??'learn');$samples=(int)$row['samples'];?>
+      <article class="tm-dna-row <?=$state!=='learn'?'is-ignored':''?>">
         <div class="tm-dna-main"><strong><?=e((string)$row['label'])?></strong><span><?=e((string)$row['provenance'])?> · <?=number_format((float)$row['confidence'],0)?>% confidence</span></div>
         <div class="tm-dna-scores"><span>Diagnosis <b><?=$row['diagnosis_score']!==null?number_format((float)$row['diagnosis_score'],0):'—'?></b></span><span>Trips <b><?=$learned!==null?e(tm_signal_value((float)$learned)):'—'?></b></span><span>Effective <b><?=number_format((float)$row['effective_score'],0)?></b></span></div>
-        <div class="tm-dna-control"><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="signal_control"><input type="hidden" name="signal_key" value="<?=e((string)$row['key'])?>"><input type="hidden" name="learning_state" value="<?=$ignored?'learn':'ignore'?>"><button class="button secondary small" type="submit"><?=$ignored?'Resume learning':'Ignore learned signal'?></button></form><?php if($ignored):?><small>Excluded from recommendations</small><?php else:?><small><?=(int)$row['samples']?> completed-trip sample<?=((int)$row['samples']===1?'':'s')?></small><?php endif;?></div>
+        <div class="tm-dna-control">
+          <?php if($state==='suppress'):?>
+            <form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="signal_control"><input type="hidden" name="signal_key" value="<?=e((string)$row['key'])?>"><input type="hidden" name="learning_state" value="learn"><button class="button secondary small" type="submit">Use preference again</button></form><small>Excluded from all recommendations</small>
+          <?php else:?>
+            <?php if($samples>0):?><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="signal_control"><input type="hidden" name="signal_key" value="<?=e((string)$row['key'])?>"><input type="hidden" name="learning_state" value="<?=$state==='ignore'?'learn':'ignore'?>"><button class="button secondary small" type="submit"><?=$state==='ignore'?'Resume trip learning':'Ignore trip learning'?></button></form><?php endif;?>
+            <form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="signal_control"><input type="hidden" name="signal_key" value="<?=e((string)$row['key'])?>"><input type="hidden" name="learning_state" value="suppress"><button class="tm-suppress-button" type="submit">Vacation Brain got this wrong</button></form>
+            <small><?=$state==='ignore'?'Trip learning excluded; diagnosis still active':($samples>0?$samples.' completed-trip sample'.($samples===1?'':'s'):'Diagnosis only')?></small>
+          <?php endif;?>
+        </div>
       </article><?php endforeach;?>
       <?php if(empty($snapshot['dna'])):?><div class="tm-empty">Complete a Trip Memory and Traveler DNA will begin separating diagnosis guesses from trip-proven preferences.</div><?php endif;?>
     </div>
@@ -55,7 +64,7 @@ require __DIR__.'/partials/header.php';
     </div></section>
 
     <section class="tm-panel"><div class="tm-section-head"><div><span class="eyebrow">Spending intelligence</span><h2>What trips actually cost.</h2></div></div><div class="tm-spend-list">
-      <?php foreach($snapshot['spending']??[] as $s):?><article><div class="tm-spend-head"><strong><?=e((string)$s['currency'])?></strong><span><?=(int)$s['actual_known']?> trip<?=((int)$s['actual_known']===1?'':'s')?> with actual spend</span></div><div class="tm-spend-grid"><span>Planned<b><?=e(tm_money((float)$s['target_total'],(string)$s['currency']))?></b></span><span>Booked<b><?=e(tm_money((float)$s['booked_total'],(string)$s['currency']))?></b></span><span>Actual<b><?=e(tm_money((float)$s['actual_total'],(string)$s['currency']))?></b></span><span>Variance<b><?=$s['variance_to_target']!==null?e(($s['variance_to_target']>0?'+':'').tm_money((float)$s['variance_to_target'],(string)$s['currency'])):'—'?></b></span></div></article><?php endforeach;?>
+      <?php foreach($snapshot['spending']??[] as $s):?><article><div class="tm-spend-head"><strong><?=e((string)$s['currency'])?></strong><span><?=(int)$s['actual_known']?> trip<?=((int)$s['actual_known']===1?'':'s')?> with actual spend</span></div><div class="tm-spend-grid"><span>Planned<b><?=e(tm_money((float)$s['target_total'],(string)$s['currency']))?></b></span><span>Booked<b><?=e(tm_money((float)$s['booked_total'],(string)$s['currency']))?></b></span><span>Actual<b><?=e(tm_money((float)$s['actual_total'],(string)$s['currency']))?></b></span><span>Variance<b><?=e(tm_signed_money($s['variance_to_target'],(string)$s['currency']))?></b></span></div></article><?php endforeach;?>
       <?php if(empty($snapshot['spending'])):?><div class="tm-empty compact">Add actual spend to completed Trip Memories to build a real travel budget profile.</div><?php endif;?>
     </div></section>
   </div>
