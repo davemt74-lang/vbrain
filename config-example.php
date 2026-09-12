@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Do not commit your real config.php or any real credentials.
  *
  * IMPORTANT: Keep app.internal_key stable after you start saving encrypted API
- * keys in Admin. Changing it later will make previously encrypted keys unreadable.
+ * keys or OAuth tokens. Changing it later will make encrypted values unreadable.
  */
 
 return [
@@ -36,16 +36,6 @@ return [
      * Admin > Travel Providers can securely store encrypted credentials after
      * migration 046. These config/environment values remain a server-side
      * fallback for existing installations and are never rendered to browsers.
-     *
-     * Visual Crossing: global forecast + historical weather.
-     * Ticketmaster: local live events via Discovery API.
-     * Google Places: restaurants, bars, attractions and local businesses.
-     * Skyscanner: approved-partner indicative airfare intelligence.
-     * Aviationstack: operational status for flights users record as booked.
-     * Booking.com Demand API: live lodging search/look/redirect inventory.
-     *
-     * U.S. weather automatically falls back to api.weather.gov when destination
-     * coordinates are available, even without a Visual Crossing key.
      */
     'travel' => [
         'visual_crossing_key' => '', // or VISUAL_CROSSING_API_KEY
@@ -61,5 +51,20 @@ return [
         'market' => 'US',
         'locale' => 'en-US',
         'currency' => 'USD',
+    ],
+
+    /*
+     * Optional Connected Booking Inbox (migration 053 / v1.45).
+     * Create a Google OAuth Web application, enable the Gmail API, and register
+     * https://vacationbrain.com/booking-mail-oauth.php as an authorized redirect.
+     * Vacation Brain requests only gmail.readonly; it cannot send/delete/modify mail.
+     * Credentials can alternatively be supplied as GOOGLE_GMAIL_CLIENT_ID and
+     * GOOGLE_GMAIL_CLIENT_SECRET environment variables.
+     */
+    'booking_mail' => [
+        'google_client_id' => '',
+        'google_client_secret' => '',
+        // Leave blank to derive from app.base_url + /booking-mail-oauth.php.
+        'google_redirect_uri' => '',
     ],
 ];
