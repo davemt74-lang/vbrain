@@ -23,8 +23,8 @@ try{
     $result['proactive']=$proactive->ready()?$proactive->runUpcoming($limit):['checked'=>0,'issues'=>0,'notifications'=>0,'research_started'=>0,'briefings'=>0,'errors'=>0,'upgrade_required'=>true];
     $mailbox=new BookingMailboxService($pdo);
     $result['booking_mailbox']=$mailbox->ready()?$mailbox->runDue($limit):['connections'=>0,'checked'=>0,'imported'=>0,'changes'=>0,'ignored'=>0,'errors'=>0,'upgrade_required'=>true];
-    $inbox=new TripUnifiedInboxService($pdo);
-    $result['trip_inbox']=$inbox->ready()?$inbox->syncActiveUsers($limit):['users'=>0,'items'=>0,'errors'=>0,'upgrade_required'=>true];
+    $inboxWorker=new TripUnifiedInboxWorkerService($pdo);
+    $result['trip_inbox']=$inboxWorker->ready()?$inboxWorker->runDue($limit):['users'=>0,'items'=>0,'errors'=>0,'upgrade_required'=>true];
     $errors=(int)($result['errors']??0)+(int)($result['travel_operations']['errors']??0)+(int)($result['proactive']['errors']??0)+(int)($result['booking_mailbox']['errors']??0)+(int)($result['trip_inbox']['errors']??0);
     fwrite(STDOUT,json_encode($result,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL);
     exit($errors>0?2:0);
