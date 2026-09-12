@@ -39,10 +39,11 @@ final class TripDisruptionResolutionService
                 $case['evidence']=$this->evidence((int)$case['id']);
                 $case['financials']=$this->aggregateEntries($case['entries']);
             }else{
-                // Collaborators can see shared operational resolution state, but not
-                // owner financial entries, evidence notes/URLs or resolution summary.
+                // Shared collaborators receive status-level resolution facts only.
+                // Owner finance, provider/claim timing, evidence and notes stay private.
                 $case['entries']=[];$case['evidence']=[];$case['financials']=[];
-                $case['resolution_summary']=null;
+                $case['provider_name']=null;$case['claim_deadline']=null;$case['next_followup_at']=null;$case['resolution_summary']=null;
+                $case['attention']=['deadline_overdue'=>false,'deadline_soon'=>false,'followup_due'=>false];
             }
         }unset($case);
         if($owner)$this->syncInbox($userId,$tripId,$cases);
@@ -57,7 +58,7 @@ final class TripDisruptionResolutionService
         return [
             'ready'=>true,'generated_at'=>date(DATE_ATOM),'trip'=>$this->publicTrip($trip),'role'=>(string)($access['role']??'viewer'),
             'can_manage'=>$owner,'can_view_financials'=>$owner,'cases'=>$cases,'summary'=>$summary,'financials'=>$financials,
-            'privacy_note'=>'Financial entries, evidence notes/URLs and resolution notes are owner-only. Ordinary agent context receives only status, deadlines and aggregate owner totals; no claim references, confirmation codes, payment data or private evidence text.',
+            'privacy_note'=>'Financial entries, provider/claim timing, evidence notes/URLs and resolution notes are owner-only. Ordinary agent context receives only shared status and aggregate owner totals; no claim references, confirmation codes, payment data or private evidence text.',
             'safety_note'=>'Vacation Brain tracks recovery outcomes only. It does not submit claims, request or issue refunds/credits, move money, cancel, rebook, pay, or mutate provider reservations.',
         ];
     }
@@ -72,7 +73,7 @@ final class TripDisruptionResolutionService
         $before=(string)$case['status'];
         $this->pdo->prepare('UPDATE trip_resolution_cases SET status=?,provider_name=?,claim_deadline=?,next_followup_at=?,resolution_summary=?,closed_at=?,updated_by=?,updated_at=NOW() WHERE id=? AND dream_trip_id=?')->execute([$status,$provider,$deadline,$followup,$summary,$closed,$userId,$caseId,$tripId]);
         if($before!==$status)$this->event($tripId,$caseId,$userId,'status_changed',['from'=>$before,'to'=>$status]);
-        if($closed)$this->event($tripId,$caseId,$userId,'closed',['status'=>$status]);
+        if($before!==$status&&$closed)$this->event($tripId,$caseId,$userId,'closed',['status'=>$status]);
         $this->syncInbox($userId,$tripId,$this->caseRows($tripId));
     }
 
@@ -93,7 +94,7 @@ final class TripDisruptionResolutionService
     {
         $this->requireReady();$this->requireOwner($userId,$tripId);$this->caseRow($tripId,$caseId);$reason=$this->clip($reason,500);if($reason==='')throw new InvalidArgumentException('Add a reason for voiding this ledger entry.');
         $q=$this->pdo->prepare('SELECT id,voided_at FROM trip_resolution_entries WHERE id=? AND dream_trip_id=? AND resolution_case_id=? LIMIT 1');$q->execute([$entryId,$tripId,$caseId]);$row=$q->fetch();if(!$row)throw new OutOfBoundsException('Resolution entry not found.');if(!empty($row['voided_at']))throw new DomainException('This resolution entry is already voided.');
-        $this->pdo->prepare('UPDATE trip_resolution_entries SET voided_at=NOW(),voided_by=?,void_reason=? WHERE id=? AND dream_trip_id=? AND resolution_case_id=? AND voided_at IS NULL')->execute([$userId,$reason,$entryId,$tripId,$caseId]);
+        $stmt=$this->pdo->prepare('UPDATE trip_resolution_entries SET voided_at=NOW(),voided_by=?,void_reason=? WHERE id=? AND dream_trip_id=? AND resolution_case_id=? AND voided_at IS NULL');$stmt->execute([$userId,$reason,$entryId,$tripId,$caseId]);if($stmt->rowCount()!==1)throw new DomainException('The resolution entry changed before it could be voided. Refresh and try again.');
         $this->event($tripId,$caseId,$userId,'entry_voided',['entry_id'=>$entryId]);$this->reconcileCaseState($tripId,$caseId,$userId);
     }
 
@@ -147,21 +148,21 @@ final class TripDisruptionResolutionService
 
     private function reconcileCaseState(int $tripId,int $caseId,int $userId): void
     {
-        $case=$this->caseRow($tripId,$caseId);if(in_array((string)$case['status'],['resolved','closed_no_recovery'],true))return;$financial=$this->aggregateEntries($this->entries($caseId));$received=false;$expected=false;foreach($financial['by_currency'] as $row){if(($row['cash_received']??0)>0||($row['credits_received']??0)>0)$received=true;if(($row['cash_expected']??0)>0||($row['credits_expected']??0)>0)$expected=true;}
-        $next=(string)$case['status'];if($received&&$expected)$next='partially_recovered';elseif($received&&!$expected)$next='partially_recovered';elseif($expected&&$next==='tracking')$next='claim_needed';if($next!==(string)$case['status']){$this->pdo->prepare('UPDATE trip_resolution_cases SET status=?,updated_by=?,updated_at=NOW() WHERE id=? AND dream_trip_id=?')->execute([$next,$userId,$caseId,$tripId]);$this->event($tripId,$caseId,$userId,'status_changed',['from'=>$case['status'],'to'=>$next,'source'=>'financial_ledger']);}
+        $case=$this->caseRow($tripId,$caseId);if(in_array((string)$case['status'],['resolved','closed_no_recovery'],true))return;$financial=$this->aggregateEntries($this->entries($caseId));$received=false;$outstanding=false;foreach($financial['by_currency'] as $row){if(($row['cash_received']??0)>0||($row['credits_received']??0)>0)$received=true;if(($row['cash_outstanding']??0)>0||($row['credit_outstanding']??0)>0)$outstanding=true;}
+        $next=(string)$case['status'];if($received)$next='partially_recovered';elseif($outstanding&&$next==='tracking')$next='claim_needed';if($next!==(string)$case['status']){$this->pdo->prepare('UPDATE trip_resolution_cases SET status=?,updated_by=?,updated_at=NOW() WHERE id=? AND dream_trip_id=?')->execute([$next,$userId,$caseId,$tripId]);$this->event($tripId,$caseId,$userId,'status_changed',['from'=>$case['status'],'to'=>$next,'source'=>'financial_ledger']);}
     }
 
     private function aggregateTrip(array $cases): array
     {
         $by=[];foreach($cases as $case){$financial=is_array($case['financials']??null)?$case['financials']:$this->aggregateEntries($this->entries((int)$case['id']));foreach((array)($financial['by_currency']??[]) as $currency=>$row){if(!isset($by[$currency]))$by[$currency]=$this->emptyMoneyRow();foreach(array_keys($by[$currency]) as $key)$by[$currency][$key]+=round((float)($row[$key]??0),2);}}
-        foreach($by as &$row){$row['cash_outstanding']=round(max(0,$row['cash_expected']-$row['cash_received']),2);$row['credit_outstanding']=round(max(0,$row['credits_expected']-$row['credits_received']),2);$row['net_cash_impact']=round($row['costs']-$row['cash_received'],2);}unset($row);
+        foreach($by as &$row){$row['cash_outstanding']=round(max(0,$row['cash_expected']-$row['cash_received']-$row['written_off']),2);$row['credit_outstanding']=round(max(0,$row['credits_expected']-$row['credits_received']),2);$row['net_cash_impact']=round($row['costs']-$row['cash_received'],2);}unset($row);
         return ['by_currency'=>$by,'case_count'=>count($cases),'open_case_count'=>count(array_filter($cases,static fn(array $c):bool=>!in_array((string)$c['status'],['resolved','closed_no_recovery'],true)))];
     }
 
     private function aggregateEntries(array $entries): array
     {
         $by=[];foreach($entries as $entry){if(!empty($entry['voided_at']))continue;$currency=$this->currency((string)$entry['currency']);if(!isset($by[$currency]))$by[$currency]=$this->emptyMoneyRow();$amount=(float)$entry['amount'];switch((string)$entry['entry_type']){case 'replacement_cost':case 'extra_expense':$by[$currency]['costs']+=$amount;break;case 'refund_expected':case 'insurance_expected':$by[$currency]['cash_expected']+=$amount;break;case 'refund_received':case 'insurance_received':case 'other_recovery':$by[$currency]['cash_received']+=$amount;break;case 'credit_expected':$by[$currency]['credits_expected']+=$amount;break;case 'credit_received':$by[$currency]['credits_received']+=$amount;break;case 'writeoff':$by[$currency]['written_off']+=$amount;break;}}
-        foreach($by as &$row){foreach($row as $k=>$v)$row[$k]=round($v,2);$row['cash_outstanding']=round(max(0,$row['cash_expected']-$row['cash_received']),2);$row['credit_outstanding']=round(max(0,$row['credits_expected']-$row['credits_received']),2);$row['net_cash_impact']=round($row['costs']-$row['cash_received'],2);}unset($row);return ['by_currency'=>$by];
+        foreach($by as &$row){foreach($row as $k=>$v)$row[$k]=round($v,2);$row['cash_outstanding']=round(max(0,$row['cash_expected']-$row['cash_received']-$row['written_off']),2);$row['credit_outstanding']=round(max(0,$row['credits_expected']-$row['credits_received']),2);$row['net_cash_impact']=round($row['costs']-$row['cash_received'],2);}unset($row);return ['by_currency'=>$by];
     }
 
     private function emptyMoneyRow(): array{return ['costs'=>0.0,'cash_expected'=>0.0,'cash_received'=>0.0,'credits_expected'=>0.0,'credits_received'=>0.0,'written_off'=>0.0,'cash_outstanding'=>0.0,'credit_outstanding'=>0.0,'net_cash_impact'=>0.0];}
@@ -211,9 +212,9 @@ final class TripDisruptionResolutionService
     private function trip(int $tripId): array{$q=$this->pdo->prepare('SELECT * FROM dream_trips WHERE id=? LIMIT 1');$q->execute([$tripId]);$row=$q->fetch();if(!$row)throw new OutOfBoundsException('Trip not found.');return $row;}
     private function publicTrip(array $trip): array{return ['id'=>(int)$trip['id'],'name'=>(string)$trip['name'],'destination_name'=>(string)($trip['destination_name']??''),'currency'=>(string)($trip['currency']??'USD'),'start_date'=>$trip['start_date']??null,'end_date'=>$trip['end_date']??null,'operational_state'=>(string)($trip['operational_state']??'planning')];}
     private function emptySnapshot(array $trip,array $access): array{return ['ready'=>false,'trip'=>$this->publicTrip($trip),'role'=>$access['role']??'viewer','can_manage'=>!empty($access['is_owner']),'can_view_financials'=>!empty($access['is_owner']),'cases'=>[],'summary'=>['total'=>0,'open'=>0,'claim_needed'=>0,'awaiting'=>0,'overdue'=>0],'financials'=>[],'privacy_note'=>'Run System Upgrade for v1.50.','safety_note'=>'No provider action is performed by Resolution Intelligence.'];}
-    private function ownedBookingOrNull(int $userId,int $tripId,int $bookingId): ?int{if($bookingId<1)return null;$q=$this->pdo->prepare('SELECT id FROM trip_bookings WHERE id=? AND user_id=? AND dream_trip_id=? LIMIT 1');$q->execute([$bookingId,$userId,$tripId]);return $q->fetchColumn()?(int)$bookingId:null;}
-    private function safeReferenceUrl(string $url): ?string{$url=trim($url);if($url==='')return null;if(strlen($url)>1500)throw new InvalidArgumentException('Evidence URL is too long.');if(!preg_match('#^https?://#i',$url))throw new InvalidArgumentException('Evidence URL must begin with http:// or https://.');$host=(string)(parse_url($url,PHP_URL_HOST)?:'');if($host==='')throw new InvalidArgumentException('Evidence URL is invalid.');return $url;}
-    private function money(mixed $value): float{if($value===null||trim((string)$value)===''||!is_numeric($value))throw new InvalidArgumentException('Enter a valid amount.');$n=round((float)$value,2);if($n<0||$n>99999999)throw new InvalidArgumentException('Amount is outside the supported range.');return $n;}
+    private function ownedBookingOrNull(int $userId,int $tripId,int $bookingId): ?int{if($bookingId<1)return null;$q=$this->pdo->prepare('SELECT id FROM trip_bookings WHERE id=? AND user_id=? AND dream_trip_id=? LIMIT 1');$q->execute([$bookingId,$userId,$tripId]);if(!$q->fetchColumn())throw new InvalidArgumentException('Related booking is not part of this trip.');return $bookingId;}
+    private function safeReferenceUrl(string $url): ?string{$url=trim($url);if($url==='')return null;if(strlen($url)>1500)throw new InvalidArgumentException('Evidence URL is too long.');if(!preg_match('#^https://#i',$url))throw new InvalidArgumentException('Evidence URL must begin with https://.');$host=(string)(parse_url($url,PHP_URL_HOST)?:'');if($host==='')throw new InvalidArgumentException('Evidence URL is invalid.');return $url;}
+    private function money(mixed $value): float{if($value===null||trim((string)$value)===''||!is_numeric($value))throw new InvalidArgumentException('Enter a valid amount.');$n=round((float)$value,2);if($n<=0||$n>99999999)throw new InvalidArgumentException('Amount must be greater than zero and within the supported range.');return $n;}
     private function currency(string $value): string{$v=strtoupper(trim($value));return preg_match('/^[A-Z]{3}$/',$v)?$v:'USD';}
     private function dateTimeOrNull(string $value): ?string{$v=trim($value);if($v==='')return null;$ts=strtotime($v);if(!$ts)throw new InvalidArgumentException('Enter a valid date/time.');return date('Y-m-d H:i:s',$ts);}
     private function clip(string $value,int $max): string{$v=trim(preg_replace('/\s+/u',' ',$value)??$value);return function_exists('mb_substr')?mb_substr($v,0,$max):substr($v,0,$max);}
