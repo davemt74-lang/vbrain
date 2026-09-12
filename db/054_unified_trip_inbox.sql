@@ -57,9 +57,11 @@ CREATE TABLE trip_inbox_preferences (
   delivery_mode ENUM('all','important_only','daily_digest') NOT NULL DEFAULT 'all',
   immediate_disruptions TINYINT(1) NOT NULL DEFAULT 1,
   digest_hour TINYINT UNSIGNED NOT NULL DEFAULT 8,
+  last_synced_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id),
+  KEY idx_trip_inbox_sync_queue (last_synced_at,user_id),
   CONSTRAINT fk_trip_inbox_pref_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT chk_trip_inbox_digest_hour CHECK (digest_hour BETWEEN 0 AND 23)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
