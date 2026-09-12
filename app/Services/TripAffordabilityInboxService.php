@@ -30,7 +30,7 @@ final class TripAffordabilityInboxService
 
     private function resolve(int $userId,int $tripId): void
     {
-        $this->pdo->prepare("UPDATE trip_inbox_items SET resolved_at=COALESCE(resolved_at,NOW()),requires_action=0,source_status='within_budget',snoozed_until=NULL,updated_at=NOW() WHERE user_id=? AND dream_trip_id=? AND source_type='affordability' AND source_key=? AND resolved_at IS NULL")->execute([$userId,$tripId,(string)$tripId]);
+        $this->pdo->prepare("UPDATE trip_inbox_items SET resolved_at=COALESCE(resolved_at,NOW()),requires_action=0,source_status='within_budget',source_fingerprint=SHA2(CONCAT('affordability-within-budget:',dream_trip_id),256),snoozed_until=NULL,updated_at=NOW() WHERE user_id=? AND dream_trip_id=? AND source_type='affordability' AND source_key=? AND resolved_at IS NULL")->execute([$userId,$tripId,(string)$tripId]);
     }
 
     private function clip(string $v,int $max): string{$v=trim(preg_replace('/\s+/u',' ',$v)??$v);return function_exists('mb_substr')?mb_substr($v,0,$max):substr($v,0,$max);}
