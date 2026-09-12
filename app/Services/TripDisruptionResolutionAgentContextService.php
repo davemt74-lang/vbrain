@@ -17,6 +17,6 @@ final class TripDisruptionResolutionAgentContextService
             }
             $parts[]=implode(' · ',$bits);
         }
-        return 'DISRUPTION RESOLUTION + REFUND/CREDIT INTELLIGENCE (saved ledger only; no provider, mailbox, payment or claim refresh): '.implode('; ',$parts).'. Refunds, credits and reimbursements shown here are user-recorded expectations/receipts, not provider-verified money movement unless separately verified by the user. Vacation Brain must not claim, request, submit, refund, credit, pay, rebook, cancel or mutate a provider from this context. Financial detail is owner-only; collaborators receive status only. Private evidence notes/URLs, resolution notes, booking confirmation codes, payment data, provider credentials and mailbox tokens are excluded.';
+        return 'DISRUPTION RESOLUTION + REFUND/CREDIT INTELLIGENCE (saved ledger only; no provider, mailbox, payment or claim refresh): '.implode('; ',$parts).'. Refunds, credits and reimbursements shown here are user-recorded expectations/receipts, not provider-verified money movement unless separately verified by the user. Any provider transaction still requires the existing explicit transaction approval flow. Vacation Brain must not claim, request, submit, refund, credit, pay, rebook, cancel or mutate a provider from this context. Financial detail is owner-only; collaborators receive status only. Private evidence notes/URLs, resolution notes, booking confirmation codes, payment data, provider credentials and mailbox tokens are excluded.';
     }
 }
