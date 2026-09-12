@@ -14,7 +14,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         else throw new InvalidArgumentException('Unknown cost action.');
         redirect('trip-cost.php?id='.$tripId);
     }catch(InvalidArgumentException|DomainException|OutOfBoundsException $e){$error=$e->getMessage();}
-    catch(Throwable $e){error_log('Trip Cost Intelligence update failed: '.$e->getMessage());$error='Vacation Brain could not update trip costs safely. '.$e->getMessage();}
+    catch(Throwable $e){error_log('Trip Cost Intelligence update failed: '.$e->getMessage());$error='Vacation Brain could not update trip costs safely. Try again or check the server log.';}
 }
 try{$snapshot=$service->snapshot($userId,$tripId);}catch(OutOfBoundsException $e){http_response_code(404);exit('Trip not found.');}
 $trip=$snapshot['trip'];$success=flash('success');$title='True Trip Economics — '.$trip['name'];$pageStyles=['assets/trip-cost-intelligence.css'];
