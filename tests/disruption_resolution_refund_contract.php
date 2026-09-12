@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 $root=dirname(__DIR__);$read=static fn(string $file): string => file_get_contents($root.'/'.$file) ?: '';
-$files=['db/058_disruption_resolution_refund_intelligence.sql','app/Services/TripDisruptionResolutionService.php','app/Services/TripDisruptionResolutionAgentContextService.php','trip-resolution.php','assets/disruption-resolution.css','bin/run-travel-watches.php','app/Services/BookingActionAgentContextService.php','app/bootstrap.php','assets/trip-workspace-tabs.js'];
+$files=['db/058_disruption_resolution_refund_intelligence.sql','app/Services/TripDisruptionResolutionService.php','app/Services/TripDisruptionResolutionAgentContextService.php','trip-resolution.php','trip-memory.php','assets/disruption-resolution.css','bin/run-travel-watches.php','app/Services/BookingActionAgentContextService.php','app/bootstrap.php','assets/trip-workspace-tabs.js'];
 foreach($files as $file)if(!is_file($root.'/'.$file)){fwrite(STDERR,"Missing Disruption Resolution file: {$file}\n");exit(1);}
 
 $m=$read('db/058_disruption_resolution_refund_intelligence.sql');
@@ -18,6 +18,7 @@ foreach(['source_url','resolution_summary','void_reason','confirmation_code','pr
 
 $page=$read('trip-resolution.php');foreach(['Disruption Resolution + Refund/Credit Intelligence','Track what the disruption actually cost','Credits stay separate from cash','Tracking is not execution','No provider or financial action was sent','verify_csrf()','name="_csrf"','Private resolution note','Private ledger note','Evidence','Trip Memory'] as $needle)if(strpos($page,$needle)===false){fwrite(STDERR,"Resolution Center UI missing {$needle}\n");exit(1);}
 foreach(['openHandoff','executeBookingComCancellation','prepareBookingComCancellation','getCurrentPosition','watchPosition','navigator.geolocation'] as $bad)if(strpos($page,$bad)!==false){fwrite(STDERR,"Resolution Center must not execute provider/location actions: {$bad}\n");exit(1);}
+$memory=$read('trip-memory.php');foreach(['TripDisruptionResolutionService','tripFinancialSummary','Disruption resolution outcome','factual trip history, not an automatic preference signal','Cash recovery and provider credits remain separate','trip-resolution.php?id='] as $needle)if(strpos($memory,$needle)===false){fwrite(STDERR,"Trip Memory is missing disruption resolution outcome context: {$needle}\n");exit(1);}
 
 $runner=$read('bin/run-travel-watches.php');foreach(['TripDisruptionResolutionService',"\$result['resolution_intelligence']",'runUpcoming($limit)'] as $needle)if(strpos($runner,$needle)===false){fwrite(STDERR,"Resolution deadlines must reuse the existing travel-watch worker.\n");exit(1);}
 $bookingAgent=$read('app/Services/BookingActionAgentContextService.php');foreach(['TripDisruptionResolutionAgentContextService','$resolution->context($userId,3)'] as $needle)if(strpos($bookingAgent,$needle)===false){fwrite(STDERR,"Main Vacation Brain agent is missing safe resolution context: {$needle}\n");exit(1);}
