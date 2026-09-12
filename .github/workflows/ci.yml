@@ -88,6 +88,9 @@ jobs:
       - name: Check Unified Trip Communications + Action Inbox contract
         run: php tests/unified_trip_inbox_contract.php
 
+      - name: Check Complete Itinerary Intelligence contract
+        run: php tests/complete_itinerary_intelligence_contract.php
+
       - name: Check Booking + Trip Readiness contract
         run: php tests/trip_booking_readiness_contract.php
 
@@ -139,6 +142,7 @@ jobs:
           node --check assets/brain-activity.js
           node --check assets/trip-command-center.js
           node --check assets/trip-booking-summary.js
+          node --check assets/trip-workspace-tabs.js
           node --check assets/travel-mode.js
           node --check assets/travel-mode-offline.js
           node --check assets/live-travel-data.js
@@ -172,8 +176,9 @@ jobs:
           test -f db/052_booking_inbox.sql
           test -f db/053_connected_booking_inbox.sql
           test -f db/054_unified_trip_inbox.sql
+          test -f db/055_complete_itinerary_intelligence.sql
           COUNT=$(find db -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' | wc -l | tr -d ' ')
-          test "$COUNT" -eq 54
+          test "$COUNT" -eq 55
 
       - name: Validate WebP media
         shell: bash
@@ -200,17 +205,17 @@ jobs:
           required=(
             upgrade.php config-example.php
             api/shell-state.php api/dashboard-tabs.php api/dashboard-destination-context.php api/photos.php api/trip-intelligence.php api/travel-watches.php api/brain-activity.php api/trip-agent-jobs.php api/trip-command-center.php api/trip-bookings.php api/travel-operations.php
-            photos.php dream.php dream-new.php dream-trip.php trip-inbox.php trip-agent.php trip-action.php trip-execution.php trip-bookings.php booking-action.php booking-inbox.php booking-inbox-document.php booking-mailbox.php booking-mail-oauth.php booking-mail-source.php
+            photos.php dream.php dream-new.php dream-trip.php trip-itinerary.php trip-inbox.php trip-agent.php trip-action.php trip-execution.php trip-bookings.php booking-action.php booking-inbox.php booking-inbox-document.php booking-mailbox.php booking-mail-oauth.php booking-mail-source.php
             trip-collaboration.php trip-invite.php shared-trip.php local-concierge.php autonomous-trip.php trip-lodging.php flight-tracking.php travel-mode.php trip-memory.php traveler-memory.php proactive-trip.php proactive-settings.php travel-mode-offline.html watches.php
             admin/travel-providers.php bin/run-travel-watches.php bin/run-trip-agent-jobs.php destination.php destination-dashboard.php destination-edit.php destination-claim.php destination-go.php service-worker.php
             app/Services/AccountTypeService.php app/Services/DestinationOwnerService.php app/Services/TravelProviderSettingsService.php app/Services/TravelDataProviderService.php app/Services/LiveTravelDataProviderService.php app/Services/LiveTravelAgentContextService.php app/Services/BookingActionAgentContextService.php
-            app/Services/TripCollaborationService.php app/Services/TripCollaborationAgentContextService.php app/Services/LocalConciergeService.php app/Services/AutonomousTravelOperationsService.php app/Services/TripIntelligenceService.php app/Services/TripLiveIntelligenceService.php app/Services/TripSupervisorService.php app/Services/TripAgentService.php app/Services/TripAgentBatchService.php app/Services/TripAgentActionService.php app/Services/TripAgentExecutionService.php
+            app/Services/TripCollaborationService.php app/Services/TripCollaborationAgentContextService.php app/Services/TripItineraryIntelligenceService.php app/Services/TripItineraryAgentContextService.php app/Services/LocalConciergeService.php app/Services/AutonomousTravelOperationsService.php app/Services/TripIntelligenceService.php app/Services/TripLiveIntelligenceService.php app/Services/TripSupervisorService.php app/Services/TripAgentService.php app/Services/TripAgentBatchService.php app/Services/TripAgentActionService.php app/Services/TripAgentExecutionService.php
             app/Services/TripBookingService.php app/Services/TripBookingImportService.php app/Services/BookingImportAgentContextService.php app/Services/BookingMailboxService.php app/Services/BookingMailboxAgentContextService.php app/Services/TripBookingActionService.php app/Services/TripFlightTrackingService.php app/Services/TripBookingReminderService.php app/Services/TripTravelOperationsService.php app/Services/TripMemoryService.php app/Services/TravelerMemoryGraphService.php app/Services/TripCommandCenterService.php app/Services/ProactiveTravelService.php app/Services/TripAgentJobService.php app/Services/TripAgentAutomationService.php app/Services/TravelWatchService.php app/Services/VacationBrainActivityService.php
             app/Services/TripUnifiedInboxService.php app/Services/TripUnifiedInboxAgentContextService.php app/Services/TripUnifiedInboxWorkerService.php
-            partials/trip-agent-panel.php partials/trip-action-queue.php partials/trip-command-center.php partials/trip-booking-fields.php partials/traveler-memory-summary.php partials/live-travel-data-panel.php partials/flight-tracking-panel.php partials/proactive-trip-panel.php partials/proactive-dashboard-summary.php
-            assets/destination-owner.css assets/photos.css assets/photos.js assets/dashboard-agent-bar.css assets/dashboard-agent-bar.js assets/trip-intelligence.css assets/trip-agent-tabs.css assets/trip-live-agents.css assets/trip-intelligence.js assets/live-travel-data.css assets/live-travel-data.js assets/local-concierge.css assets/local-concierge.js assets/autonomous-travel.css assets/travel-providers.css assets/travel-watches.css assets/travel-watches.js assets/brain-activity.css assets/brain-activity.js assets/trip-command-center.css assets/trip-command-center.js assets/trip-bookings.css assets/booking-inbox.css assets/booking-mailbox.css assets/booking-actions.css assets/trip-collaboration.css assets/trip-booking-summary.js assets/travel-mode.css assets/travel-mode.js assets/travel-mode-offline.js assets/trip-memory.css assets/traveler-memory.css assets/traveler-memory-summary.css assets/proactive-travel.css assets/trip-inbox.css
+            partials/trip-agent-panel.php partials/trip-action-queue.php partials/trip-command-center.php partials/trip-booking-fields.php partials/traveler-memory-summary.php partials/live-travel-data-panel.php partials/flight-tracking-panel.php partials/proactive-trip-panel.php partials/proactive-dashboard-summary.php partials/trip-itinerary-intelligence.php
+            assets/destination-owner.css assets/photos.css assets/photos.js assets/dashboard-agent-bar.css assets/dashboard-agent-bar.js assets/trip-intelligence.css assets/trip-agent-tabs.css assets/trip-live-agents.css assets/trip-intelligence.js assets/live-travel-data.css assets/live-travel-data.js assets/local-concierge.css assets/local-concierge.js assets/autonomous-travel.css assets/travel-providers.css assets/travel-watches.css assets/travel-watches.js assets/brain-activity.css assets/brain-activity.js assets/trip-command-center.css assets/trip-command-center.js assets/trip-bookings.css assets/booking-inbox.css assets/booking-mailbox.css assets/booking-actions.css assets/trip-collaboration.css assets/trip-booking-summary.js assets/trip-workspace-tabs.js assets/trip-itinerary-intelligence.css assets/travel-mode.css assets/travel-mode.js assets/travel-mode-offline.js assets/trip-memory.css assets/traveler-memory.css assets/traveler-memory-summary.css assets/proactive-travel.css assets/trip-inbox.css
             assets/shell-commerce.js assets/landing-merch-fix.css assets/dashboard-trips.css assets/dashboard-trips.js assets/dashboard-tabs.css assets/dashboard-tabs.js assets/dashboard-recent.css
-            db/032_dashboard_agent_tabs.sql db/033_vacation_brain_photos.sql db/034_destination_owner_accounts.sql db/035_trip_intelligence.sql db/036_travel_watches.sql db/037_trip_agent_jobs.sql db/038_trip_agent_intelligence_batches.sql db/039_trip_agent_automation_triggers.sql db/040_trip_agent_action_queue.sql db/041_trip_action_execution_approval.sql db/042_trip_booking_readiness.sql db/043_travel_day_operations.sql db/044_post_trip_memory.sql db/045_traveler_memory_graph.sql db/046_live_travel_providers.sql db/047_proactive_vacation_brain.sql db/048_booking_action_execution.sql db/049_collaborative_trips.sql db/050_local_concierge.sql db/051_autonomous_travel_operations.sql db/052_booking_inbox.sql db/053_connected_booking_inbox.sql db/054_unified_trip_inbox.sql
+            db/032_dashboard_agent_tabs.sql db/033_vacation_brain_photos.sql db/034_destination_owner_accounts.sql db/035_trip_intelligence.sql db/036_travel_watches.sql db/037_trip_agent_jobs.sql db/038_trip_agent_intelligence_batches.sql db/039_trip_agent_automation_triggers.sql db/040_trip_agent_action_queue.sql db/041_trip_action_execution_approval.sql db/042_trip_booking_readiness.sql db/043_travel_day_operations.sql db/044_post_trip_memory.sql db/045_traveler_memory_graph.sql db/046_live_travel_providers.sql db/047_proactive_vacation_brain.sql db/048_booking_action_execution.sql db/049_collaborative_trips.sql db/050_local_concierge.sql db/051_autonomous_travel_operations.sql db/052_booking_inbox.sql db/053_connected_booking_inbox.sql db/054_unified_trip_inbox.sql db/055_complete_itinerary_intelligence.sql
             assets/merch/palm-springs-hoodie-front.webp assets/merch/palm-springs-hoodie-back.webp assets/merch/palm-springs-trucker-hat.webp
           )
           for path in "${required[@]}"; do
