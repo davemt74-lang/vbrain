@@ -5,6 +5,7 @@ try{$overlayService=new TripItineraryIntelligenceService(db());if(!$overlayServi
 $overlayIssues=array_values(array_filter((array)($overlay['issues']??[]),static fn(array $i):bool=>in_array((string)$i['severity'],['high','medium'],true)));
 $overlayNext=array_values(array_filter((array)($overlay['timeline']??[]),static fn(array $e):bool=>in_array((string)$e['phase'],['now','next','later'],true)));
 ?>
+<link rel="stylesheet" href="<?=e(app_url('assets/travel-mode-itinerary.css'))?>" data-vb-travel-itinerary-style>
 <section class="travel-side-card vb-travel-itinerary-overlay" data-vb-travel-itinerary-overlay>
   <div class="travel-section-head"><span class="eyebrow">Timing Intelligence</span><h2>Door-to-door plan</h2><p>Saved itinerary math only—no traffic, provider or device-location refresh.</p></div>
   <div class="vb-travel-itinerary-overlay-stats"><span><strong><?=count($overlayIssues)?></strong> timing issue<?=count($overlayIssues)===1?'':'s'?></span><a href="<?=e(app_url('trip-itinerary.php?id='.$overlayTripId.'&date='.rawurlencode((string)$overlay['selected_date'])))?>">Full timeline →</a></div>
