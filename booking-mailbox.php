@@ -15,7 +15,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         elseif($action==='disconnect'){$service->disconnect($userId);flash('success','Gmail disconnected. Canonical trip bookings were kept; connected-mail source and change history were removed.');}
         elseif($action==='ignore_sender'){$service->ignoreSender($userId,(string)($_POST['sender']??''));flash('success','That sender will be ignored by future Booking Inbox scans.');}
         elseif($action==='remove_ignored_sender'){$service->removeIgnoredSender($userId,(string)($_POST['sender']??''));flash('success','Sender removed from the ignore list.');}
-        elseif($action==='apply_change'){$service->applyChange($userId,(int)($_POST['proposal_id']??0));flash('success','Provider-reported reservation change applied to the canonical trip.');}
+        elseif($action==='apply_change'){$service->applyChange($userId,(int)($_POST['proposal_id']??0));flash('success','Email-reported reservation change applied to the canonical trip.');}
         elseif($action==='dismiss_change'){$service->dismissChange($userId,(int)($_POST['proposal_id']??0));flash('success','Reservation change dismissed. The canonical booking was left unchanged.');}
         elseif($action!=='connect')throw new InvalidArgumentException('Unknown Connected Booking Inbox action.');
         redirect('booking-mailbox.php');
@@ -45,7 +45,7 @@ require __DIR__.'/partials/header.php';
   <section class="vb-mail-grid">
     <div class="dashboard-card vb-mail-card">
       <span class="eyebrow">Read-only source</span><h1>Connected Booking Inbox</h1>
-      <p>Connect Gmail so Vacation Brain can look only for likely travel confirmations and provider-reported reservation changes. It cannot send, delete, label, or modify your mail.</p>
+      <p>Connect Gmail so Vacation Brain can look only for likely travel confirmations and email-reported reservation changes. It cannot send, delete, label, or modify your mail.</p>
       <?php if(!$configured):?><div class="vb-mail-oauth-note"><strong>Google OAuth setup required.</strong> Add the Gmail OAuth client ID and secret to server config/environment and register <code><?=e(app_url('booking-mail-oauth.php'))?></code> as the redirect URI. Vacation Brain requests only <code>gmail.readonly</code>.</div><?php elseif(!$connection):?>
         <form method="post" class="vb-mail-form"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="connect"><button class="button primary" type="submit">Connect Gmail read-only</button></form>
       <?php else:?>
@@ -68,16 +68,16 @@ require __DIR__.'/partials/header.php';
     </div>
 
     <div class="dashboard-card vb-mail-card">
-      <div class="vb-mail-change-head"><div><span class="eyebrow">Needs review</span><h2>Reservation changes</h2><p>Connected mail can observe a provider-reported change, but it does not rewrite your trip until you approve the before/after diff here.</p></div><span class="vb-mail-badge <?=count($changes)>0?'attention':''?>"><?=count($changes)?> pending</span></div>
+      <div class="vb-mail-change-head"><div><span class="eyebrow">Needs review</span><h2>Reservation changes</h2><p>Connected mail can observe an email-reported change, but it does not rewrite your trip until you approve the before/after diff and inspect the source as needed.</p></div><span class="vb-mail-badge <?=count($changes)>0?'attention':''?>"><?=count($changes)?> pending</span></div>
       <div class="vb-mail-change-list">
         <?php foreach($changes as $change):?>
         <article class="vb-mail-change <?=e((string)$change['change_type'])?>">
           <div class="vb-mail-change-head"><div><strong><?=e((string)$change['booking_title'])?></strong><br><small><?=e((string)$change['trip_name'])?> · <?=e(vb_mail_label((string)$change['change_type']))?> · <?=e(vb_mail_value($change['message_date']))?></small></div><span class="vb-mail-badge attention"><?=e(vb_mail_label((string)$change['change_type']))?></span></div>
           <div class="vb-mail-diff"><?php foreach((array)$change['diff'] as $field=>$delta):?><div class="vb-mail-diff-row"><b><?=e(vb_mail_label((string)$field))?></b><span><del><?=e(vb_mail_value($delta['from']??null))?></del> → <ins><?=e(vb_mail_value($delta['to']??null))?></ins></span></div><?php endforeach;?></div>
-          <div class="vb-mail-review-actions"><a class="button secondary small" href="<?=e(app_url('booking-mail-source.php?id='.(int)$change['message_id']))?>">Redacted source</a><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="dismiss_change"><input type="hidden" name="proposal_id" value="<?=(int)$change['id']?>"><button class="button secondary small" type="submit">Dismiss</button></form><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="apply_change"><input type="hidden" name="proposal_id" value="<?=(int)$change['id']?>"><button class="button primary small" type="submit"><?=$change['change_type']==='cancelled'?'Record provider cancellation':'Apply factual change'?></button></form></div>
+          <div class="vb-mail-review-actions"><a class="button secondary small" href="<?=e(app_url('booking-mail-source.php?id='.(int)$change['message_id']))?>">Redacted source</a><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="dismiss_change"><input type="hidden" name="proposal_id" value="<?=(int)$change['id']?>"><button class="button secondary small" type="submit">Dismiss</button></form><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="action" value="apply_change"><input type="hidden" name="proposal_id" value="<?=(int)$change['id']?>"><button class="button primary small" type="submit"><?=$change['change_type']==='cancelled'?'Record email cancellation':'Apply email change'?></button></form></div>
         </article>
         <?php endforeach;?>
-        <?php if(!$changes):?><div class="vb-mail-empty"><strong>No reservation changes need review.</strong><span>Vacation Brain will put provider-reported changes here instead of silently rewriting a trip.</span></div><?php endif;?>
+        <?php if(!$changes):?><div class="vb-mail-empty"><strong>No reservation changes need review.</strong><span>Vacation Brain will put email-reported changes here instead of silently rewriting a trip.</span></div><?php endif;?>
       </div>
     </div>
   </section>
