@@ -22,7 +22,8 @@ CREATE TABLE trip_affordability_settings (
   CONSTRAINT fk_trip_affordability_settings_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_trip_affordability_contingency CHECK (contingency_pct BETWEEN 0 AND 50),
   CONSTRAINT chk_trip_affordability_disruption CHECK (disruption_reserve_pct BETWEEN 0 AND 50),
-  CONSTRAINT chk_trip_affordability_alert CHECK (alert_overage_pct BETWEEN 0 AND 100)
+  CONSTRAINT chk_trip_affordability_alert CHECK (alert_overage_pct BETWEEN 0 AND 100),
+  CONSTRAINT chk_trip_affordability_history CHECK (include_learned_history IN (0,1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE trip_affordability_scenarios (
@@ -52,7 +53,17 @@ CREATE TABLE trip_affordability_scenarios (
   CONSTRAINT fk_trip_affordability_scenario_trip FOREIGN KEY (dream_trip_id) REFERENCES dream_trips(id) ON DELETE CASCADE,
   CONSTRAINT chk_trip_affordability_scenario_travelers CHECK (travelers IS NULL OR travelers BETWEEN 1 AND 30),
   CONSTRAINT chk_trip_affordability_scenario_days CHECK (duration_days IS NULL OR duration_days BETWEEN 1 AND 120),
-  CONSTRAINT chk_trip_affordability_scenario_budget CHECK (target_budget IS NULL OR target_budget >= 0)
+  CONSTRAINT chk_trip_affordability_scenario_budget CHECK (target_budget IS NULL OR target_budget >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_flight CHECK (flight_override IS NULL OR flight_override >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_lodging CHECK (lodging_override IS NULL OR lodging_override >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_transport CHECK (transport_override IS NULL OR transport_override >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_food CHECK (food_override IS NULL OR food_override >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_activity CHECK (activity_override IS NULL OR activity_override >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_event CHECK (event_override IS NULL OR event_override >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_shopping CHECK (shopping_override IS NULL OR shopping_override >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_fees CHECK (fees_override IS NULL OR fees_override >= 0),
+  CONSTRAINT chk_trip_affordability_scenario_contingency CHECK (contingency_pct IS NULL OR contingency_pct BETWEEN 0 AND 50),
+  CONSTRAINT chk_trip_affordability_scenario_disruption CHECK (disruption_reserve_pct IS NULL OR disruption_reserve_pct BETWEEN 0 AND 50)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE trip_affordability_events (
