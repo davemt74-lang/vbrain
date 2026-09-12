@@ -56,7 +56,7 @@ CREATE TABLE trip_resolution_entries (
   CONSTRAINT fk_trip_resolution_entry_booking FOREIGN KEY (source_booking_id) REFERENCES trip_bookings(id) ON DELETE SET NULL,
   CONSTRAINT fk_trip_resolution_entry_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_trip_resolution_entry_void_user FOREIGN KEY (voided_by) REFERENCES users(id) ON DELETE SET NULL,
-  CONSTRAINT chk_trip_resolution_entry_amount CHECK (amount >= 0)
+  CONSTRAINT chk_trip_resolution_entry_amount CHECK (amount > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE trip_resolution_evidence (
