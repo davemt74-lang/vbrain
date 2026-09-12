@@ -1,5 +1,6 @@
 <?php $footerUser=current_user(); $footerPage=basename($_SERVER['PHP_SELF']??''); ?>
 <?php if($footerUser && in_array($footerPage,['dream-trip.php','travel-mode.php'],true) && (int)($_GET['id']??0)>0):?><?php require __DIR__.'/live-travel-data-panel.php';?><?php require __DIR__.'/proactive-trip-panel.php';?><?php endif;?>
+<?php if($footerUser && $footerPage==='dream-trip.php' && (int)($_GET['id']??0)>0):?><?php require __DIR__.'/trip-itinerary-intelligence.php';?><?php endif;?>
 <?php if($footerUser && $footerPage==='trip-bookings.php' && isset($userId,$tripId) && (int)$tripId>0):?><?php require __DIR__.'/flight-tracking-panel.php';?><?php endif;?>
 </main>
 <?php if(!$footerUser):?><footer class="site-footer"><div class="shell footer-shell"><div><strong>Vacation Brain</strong><div class="muted small">Daydream more. Work less.</div></div><div class="footer-copy"><?=e(diagnosis_disclaimer())?></div></div></footer><?php endif;?>
@@ -7,6 +8,7 @@
 <?php if($footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-agent-tabs.css'))?>"><?php endif;?>
 <?php if($footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-bookings.css'))?>" data-vb-booking-style><?php endif;?>
 <?php if($footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-workspace-tabs.css'))?>" data-vb-trip-workspace-style><?php endif;?>
+<?php if($footerUser && in_array($footerPage,['dream-trip.php','trip-itinerary.php','travel-mode.php'],true)):?><link rel="stylesheet" href="<?=e(app_url('assets/trip-itinerary-intelligence.css'))?>" data-vb-itinerary-style><?php endif;?>
 <?php if($footerUser):?><link rel="stylesheet" href="<?=e(app_url('assets/travel-watches.css'))?>" data-vb-watch-style><?php endif;?>
 <?php if($footerUser && $footerPage==='dream-trip.php'):?><link rel="stylesheet" href="<?=e(app_url('assets/brain-activity.css'))?>" data-vb-brain-style><?php endif;?>
 <?php if($footerUser && in_array($footerPage,['dream-trip.php','travel-mode.php','trip-bookings.php','trip-lodging.php'],true)):?><link rel="stylesheet" href="<?=e(app_url('assets/live-travel-data.css'))?>" data-vb-live-data-style><?php endif;?>
