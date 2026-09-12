@@ -8,6 +8,7 @@ try{
     $ccMailboxService=new BookingMailboxService($pdo);if($ccMailboxService->ready())$commandCenterSnapshot=$ccMailboxService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
     $ccReminderService=new TripBookingReminderService($pdo);if($ccReminderService->ready())$commandCenterSnapshot=$ccReminderService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
     $ccOperationsService=new TripTravelOperationsService($pdo);if($ccOperationsService->ready())$commandCenterSnapshot=$ccOperationsService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
+    $ccInboxService=new TripUnifiedInboxService($pdo);if($ccInboxService->ready())$commandCenterSnapshot=$ccInboxService->augmentCommandCenterSnapshot($userId,$commandCenterSnapshot);
 }catch(Throwable $e){error_log('Trip Command Center render failed: '.$e->getMessage());$commandCenterSnapshot=['ready'=>false,'status'=>'Command Center unavailable','summary'=>[],'attention'=>[],'upcoming_trips'=>[],'active_agents'=>[],'watch_alerts'=>[],'booking_handoffs'=>[],'risks'=>[]];}
 $ccSummary=$commandCenterSnapshot['summary']??[];
 $ccMoney=static function(mixed $value,string $currency='USD'): string{if($value===null||$value==='')return '—';$symbol=$currency==='USD'?'$':$currency.' ';return $symbol.number_format((float)$value,0);};
@@ -21,7 +22,7 @@ $ccHandoffLabel=static function(string $status): string{return match($status){'a
       <div class="vb-command-title-row"><h2>Trip Command Center</h2><span class="vb-command-live"><i></i> Live</span></div>
       <p><strong data-command-status><?=e((string)($commandCenterSnapshot['status']??'Trips are under control'))?></strong> · What Vacation Brain needs from you today, what its agents are doing, and what could change your plans.</p>
     </div>
-    <div class="vb-command-head-actions"><a class="button secondary small" href="<?=e(app_url('booking-mailbox.php'))?>">Connected mail<?=(int)($ccSummary['booking_changes_review']??0)>0?' · '.(int)$ccSummary['booking_changes_review']:''?></a><a class="button secondary small" href="<?=e(app_url('booking-inbox.php'))?>">Booking Inbox<?=(int)($ccSummary['booking_imports_review']??0)>0?' · '.(int)$ccSummary['booking_imports_review']:''?></a><a class="button secondary small" href="<?=e(app_url('dream.php'))?>">All trips</a><button class="button secondary small" type="button" data-vb-command-refresh>Refresh</button></div>
+    <div class="vb-command-head-actions"><a class="button secondary small" href="<?=e(app_url('trip-inbox.php'))?>">Trip Inbox<?=(int)($ccSummary['trip_inbox_unread']??0)>0?' · '.(int)$ccSummary['trip_inbox_unread']:''?></a><a class="button secondary small" href="<?=e(app_url('booking-mailbox.php'))?>">Connected mail<?=(int)($ccSummary['booking_changes_review']??0)>0?' · '.(int)$ccSummary['booking_changes_review']:''?></a><a class="button secondary small" href="<?=e(app_url('booking-inbox.php'))?>">Booking Inbox<?=(int)($ccSummary['booking_imports_review']??0)>0?' · '.(int)$ccSummary['booking_imports_review']:''?></a><a class="button secondary small" href="<?=e(app_url('dream.php'))?>">All trips</a><button class="button secondary small" type="button" data-vb-command-refresh>Refresh</button></div>
   </div>
 
   <div class="vb-command-stats" data-command-stats>
@@ -40,7 +41,7 @@ $ccHandoffLabel=static function(string $status): string{return match($status){'a
         <?php foreach(array_slice($commandCenterSnapshot['attention']??[],0,6) as $item):?>
           <a class="vb-command-row" href="<?=e((string)$item['url'])?>"><span class="vb-command-icon <?=e((string)$item['kind'])?>"><?=match((string)$item['kind']){'approval'=>'✓','failed'=>'!','risk'=>'△',default=>'→'}?></span><span class="vb-command-row-copy"><strong><?=e((string)$item['title'])?></strong><small><?=e((string)$item['body'])?></small></span><b><?=e((string)$item['cta'])?> →</b></a>
         <?php endforeach;?>
-        <?php if(empty($commandCenterSnapshot['attention'])):?><div class="vb-command-empty"><strong>Nothing urgent.</strong><span>Vacation Brain will put approvals, failed agent work, booking deadlines, connected reservation changes, required reminders, high-priority Next Moves, and serious risks here.</span></div><?php endif;?>
+        <?php if(empty($commandCenterSnapshot['attention'])):?><div class="vb-command-empty"><strong>Nothing urgent.</strong><span>Vacation Brain will put Trip Inbox attention, approvals, failed agent work, booking deadlines, connected reservation changes, required reminders, high-priority Next Moves, and serious risks here.</span></div><?php endif;?>
       </div>
     </section>
 
@@ -95,5 +96,5 @@ $ccHandoffLabel=static function(string $status): string{return match($status){'a
       </div>
     </section>
   </div>
-  <div class="vb-command-footer"><span>Vacation Brain separates recommendations from actions: trip changes require approval and external bookings require live provider confirmation.</span><small data-command-updated>Updated <?=e(date('g:i A'))?></small></div>
+  <div class="vb-command-footer"><span>Trip Inbox is a read-only attention layer. Vacation Brain keeps recommendations separate from actions: source-system changes still require the canonical approval flow and external bookings require live provider confirmation.</span><small data-command-updated>Updated <?=e(date('g:i A'))?></small></div>
 </section>
