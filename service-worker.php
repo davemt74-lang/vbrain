@@ -2,7 +2,7 @@
 require __DIR__.'/app/bootstrap.php';header('Content-Type: application/javascript; charset=utf-8');header('Service-Worker-Allowed: '.parse_url(app_url(''),PHP_URL_PATH));
 $base=rtrim(app_url(''),'/');
 ?>
-const CACHE='vacation-brain-shell-v2';
+const CACHE='vacation-brain-shell-v3';
 const BASE=<?=json_encode($base)?>;
 const OFFLINE_TRAVEL=BASE+'/travel-mode-offline.html';
 const SHELL=[BASE+'/',BASE+'/assets/app.css',BASE+'/assets/app.js',BASE+'/assets/travel-mode.css',BASE+'/assets/travel-mode-offline.js',OFFLINE_TRAVEL];

@@ -77,6 +77,8 @@ require_once __DIR__ . '/Services/TripCollaborationService.php';
 require_once __DIR__ . '/Services/TripCollaborationAgentContextService.php';
 require_once __DIR__ . '/Services/TripItineraryIntelligenceService.php';
 require_once __DIR__ . '/Services/TripItineraryAgentContextService.php';
+require_once __DIR__ . '/Services/TripTravelDayCopilotService.php';
+require_once __DIR__ . '/Services/TripTravelDayCopilotAgentContextService.php';
 require_once __DIR__ . '/Services/LocalConciergeService.php';
 require_once __DIR__ . '/Services/WeatherEnvyService.php';
 require_once __DIR__ . '/Services/RoastService.php';

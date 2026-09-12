@@ -25,9 +25,11 @@ try{
     $result['booking_mailbox']=$mailbox->ready()?$mailbox->runDue($limit):['connections'=>0,'checked'=>0,'imported'=>0,'changes'=>0,'ignored'=>0,'errors'=>0,'upgrade_required'=>true];
     $itinerary=new TripItineraryIntelligenceService($pdo);
     $result['itinerary_intelligence']=$itinerary->ready()?$itinerary->runUpcoming($limit):['checked'=>0,'issues'=>0,'errors'=>0,'upgrade_required'=>true];
+    $copilot=new TripTravelDayCopilotService($pdo);
+    $result['travel_day_copilot']=$copilot->ready()?$copilot->runUpcoming($limit):['checked'=>0,'ripples'=>0,'errors'=>0,'upgrade_required'=>true];
     $inboxWorker=new TripUnifiedInboxWorkerService($pdo);
     $result['trip_inbox']=$inboxWorker->ready()?$inboxWorker->runDue($limit):['users'=>0,'items'=>0,'errors'=>0,'upgrade_required'=>true];
-    $errors=(int)($result['errors']??0)+(int)($result['travel_operations']['errors']??0)+(int)($result['proactive']['errors']??0)+(int)($result['booking_mailbox']['errors']??0)+(int)($result['itinerary_intelligence']['errors']??0)+(int)($result['trip_inbox']['errors']??0);
+    $errors=(int)($result['errors']??0)+(int)($result['travel_operations']['errors']??0)+(int)($result['proactive']['errors']??0)+(int)($result['booking_mailbox']['errors']??0)+(int)($result['itinerary_intelligence']['errors']??0)+(int)($result['travel_day_copilot']['errors']??0)+(int)($result['trip_inbox']['errors']??0);
     fwrite(STDOUT,json_encode($result,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL);
     exit($errors>0?2:0);
 }catch(Throwable $e){
