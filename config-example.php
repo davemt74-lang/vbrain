@@ -36,6 +36,16 @@ return [
      * Admin > Travel Providers can securely store encrypted credentials after
      * migration 046. These config/environment values remain a server-side
      * fallback for existing installations and are never rendered to browsers.
+     *
+     * Visual Crossing: global forecast + historical weather.
+     * Ticketmaster: local live events via Discovery API.
+     * Google Places: restaurants, bars, attractions and local businesses.
+     * Skyscanner: approved-partner indicative airfare intelligence.
+     * Aviationstack: operational status for flights users record as booked.
+     * Booking.com Demand API: live lodging search/look/redirect inventory.
+     *
+     * U.S. weather automatically falls back to api.weather.gov when destination
+     * coordinates are available, even without a Visual Crossing key.
      */
     'travel' => [
         'visual_crossing_key' => '', // or VISUAL_CROSSING_API_KEY
