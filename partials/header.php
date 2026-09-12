@@ -4,7 +4,7 @@ $user = current_user();
 $current = basename($_SERVER['PHP_SELF'] ?? '');
 $scriptPath = str_replace('\\','/', $_SERVER['PHP_SELF'] ?? '');
 $inAdmin = str_contains($scriptPath, '/admin/') || $current === 'upgrade.php';
-$matchUnread = 0; $notificationUnread = 0;
+$matchUnread = 0; $notificationUnread = 0; $tripInboxUnread = 0;
 $destinationAccountsReady = false; $destinationDashboardAvailable = false;
 $siteName = site_setting('brand.site_name','Vacation Brain') ?: 'Vacation Brain';
 $siteLogo = site_setting('brand.logo_url','') ?: '';
@@ -21,6 +21,7 @@ $pageStyles = is_array($pageStyles ?? null) ? $pageStyles : [];
 if ($user) {
     try { $matchUnread = (new TravelMessageService(db()))->unreadCount((int)$user['id']); } catch (Throwable $e) { $matchUnread = 0; }
     try { $notificationUnread = (new NotificationService(db()))->unreadCount((int)$user['id']); } catch (Throwable $e) { $notificationUnread = 0; }
+    try { $tripInboxNav = new TripUnifiedInboxService(db()); if($tripInboxNav->ready())$tripInboxUnread=$tripInboxNav->unreadCount((int)$user['id']); } catch (Throwable $e) { $tripInboxUnread = 0; }
     try { $destinationOwnerNav = new DestinationOwnerService(db()); $destinationAccountsReady=$destinationOwnerNav->ready(); $destinationDashboardAvailable=$destinationOwnerNav->canUseDashboard((int)$user['id']); } catch (Throwable $e) { $destinationAccountsReady=false; $destinationDashboardAvailable=false; }
 }
 function nav_active(array $files): string { global $current; return in_array($current,$files,true)?'active':''; }
@@ -87,6 +88,7 @@ function nav_active(array $files): string { global $current; return in_array($cu
       <span class="sidebar-section-label">Vacation Brain</span>
       <a class="<?=nav_active(['today.php'])?>" href="<?=e(app_url('today.php'))?>"><span>⌂</span>Dashboard</a>
       <a class="<?=nav_active(['dream.php','dream-new.php','dream-trip.php'])?>" href="<?=e(app_url('dream.php'))?>"><span>☁</span>Plan Trip</a>
+      <a class="<?=nav_active(['trip-inbox.php'])?>" href="<?=e(app_url('trip-inbox.php'))?>"><span>▤</span>Trip Inbox<?php if($tripInboxUnread>0):?><b class="nav-unread"><?=$tripInboxUnread>99?'99+':$tripInboxUnread?></b><?php endif;?></a>
       <a class="<?=nav_active(['destinations.php'])?>" href="<?=e(app_url('destinations.php'))?>"><span>⌖</span>Destinations</a>
       <?php if($destinationDashboardAvailable):?><a class="<?=nav_active(['destination-dashboard.php','destination-edit.php'])?>" href="<?=e(app_url('destination-dashboard.php'))?>"><span>▤</span>Destination Dashboard</a><?php endif;?>
       <a class="<?=nav_active(['photos.php','vacation-yourself.php','vacation-gallery.php'])?>" href="<?=e(app_url('photos.php'))?>"><span>▧</span>Photos</a>
