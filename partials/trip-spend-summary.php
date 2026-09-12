@@ -1,4 +1,5 @@
 <?php
+if(!class_exists('TripSpendExecutionService'))require_once dirname(__DIR__).'/app/Services/TripSpendExecutionService.php';
 $vbSpendTripId=(int)($dashboard['trip']['id']??$tripId??0);$vbSpendSummary=null;
 if($vbSpendTripId>0&&class_exists('TripSpendExecutionService')){try{$vbSpendSvc=new TripSpendExecutionService(db());if($vbSpendSvc->ready()){$vbSpendSnap=$vbSpendSvc->snapshot((int)$userId,$vbSpendTripId);if(!empty($vbSpendSnap['can_manage']))$vbSpendSummary=$vbSpendSnap['execution']??null;}}catch(Throwable){$vbSpendSummary=null;}}
 if($vbSpendSummary):$vbSpendCurrency=(string)($vbSpendSummary['currency']??'USD');$vbSpendFmt=static fn($v)=>$v===null?'—':($vbSpendCurrency==='USD'?'$':$vbSpendCurrency.' ').number_format((float)$v,2);?>
