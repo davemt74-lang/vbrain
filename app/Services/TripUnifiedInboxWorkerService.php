@@ -25,8 +25,9 @@ final class TripUnifiedInboxWorkerService
             LEFT JOIN trip_inbox_preferences p ON p.user_id=c.user_id
             ORDER BY COALESCE(p.last_synced_at,'1970-01-01 00:00:00') ASC,c.user_id ASC
             LIMIT {$limit}";
-        $rows=$this->pdo->query($sql)->fetchAll(PDO::FETCH_COLUMN)?:[];$out=['users'=>0,'items'=>0,'errors'=>0];$inbox=new TripUnifiedInboxService($this->pdo);$affordability=class_exists('TripAffordabilityInboxService')?new TripAffordabilityInboxService($this->pdo):null;
-        foreach($rows as $uid){$uid=(int)$uid;$out['users']++;try{$r=$inbox->syncUser($uid);$out['items']+=(int)($r['items']??0);if($affordability&&$affordability->ready()){$a=$affordability->syncUser($uid);$out['items']+=(int)($a['items']??0);}}catch(Throwable $e){$out['errors']++;error_log('Unified Trip Inbox worker sync failed for user '.$uid.': '.$e->getMessage());}finally{$this->markSynced($uid);}}
+        $rows=$this->pdo->query($sql)->fetchAll(PDO::FETCH_COLUMN)?:[];$out=['users'=>0,'items'=>0,'errors'=>0];$inbox=new TripUnifiedInboxService($this->pdo);$affordability=class_exists('TripAffordabilityInboxService')?new TripAffordabilityInboxService($this->pdo):null;$spend=null;
+        try{if(!class_exists('TripSpendInboxService')){require_once __DIR__.'/TripSpendExecutionService.php';require_once __DIR__.'/TripSpendInboxService.php';}if(class_exists('TripSpendInboxService'))$spend=new TripSpendInboxService($this->pdo);}catch(Throwable){}
+        foreach($rows as $uid){$uid=(int)$uid;$out['users']++;try{$r=$inbox->syncUser($uid);$out['items']+=(int)($r['items']??0);if($affordability&&$affordability->ready()){$a=$affordability->syncUser($uid);$out['items']+=(int)($a['items']??0);}if($spend&&$spend->ready()){$s=$spend->syncUser($uid);$out['items']+=(int)($s['items']??0);}}catch(Throwable $e){$out['errors']++;error_log('Unified Trip Inbox worker sync failed for user '.$uid.': '.$e->getMessage());}finally{$this->markSynced($uid);}}
         return $out;
     }
 
