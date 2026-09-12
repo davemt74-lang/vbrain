@@ -43,11 +43,11 @@ final class TripRecoveryIntelligenceService
         if(($access['role']??'viewer')!=='viewer')$this->syncInbox($userId,$tripId,$incidents);
 
         $summary=[
-            'open'=>count(array_filter($incidents,static fn(array $i):bool=>in_array($i['status'],['open','reviewed'],true))),
-            'critical'=>count(array_filter($incidents,static fn(array $i):bool=>$i['status']!=='resolved'&&$i['severity']==='critical')),
-            'high'=>count(array_filter($incidents,static fn(array $i):bool=>$i['status']!=='resolved'&&$i['severity']==='high')),
-            'options'=>count(array_filter($options,static fn(array $o):bool=>in_array($o['status'],['active','selected'],true))),
-            'provider_options'=>count(array_filter($options,static fn(array $o):bool=>!empty($o['provider_observed_at'])&&$o['status']!=='dismissed')),
+            'open'=>count(array_filter($incidents,static fn(array $i):bool=>in_array((string)$i['status'],['open','reviewed'],true))),
+            'critical'=>count(array_filter($incidents,static fn(array $i):bool=>in_array((string)$i['status'],['open','reviewed'],true)&&$i['severity']==='critical')),
+            'high'=>count(array_filter($incidents,static fn(array $i):bool=>in_array((string)$i['status'],['open','reviewed'],true)&&$i['severity']==='high')),
+            'options'=>count(array_filter($options,static fn(array $o):bool=>in_array((string)$o['status'],['active','selected'],true))),
+            'provider_options'=>count(array_filter($options,static fn(array $o):bool=>!empty($o['provider_observed_at'])&&in_array((string)$o['status'],['active','selected'],true))),
         ];
         return [
             'ready'=>true,'generated_at'=>date(DATE_ATOM),'trip'=>$this->publicTrip($trip),
@@ -90,7 +90,8 @@ final class TripRecoveryIntelligenceService
         if(empty($access['is_owner']))throw new DomainException('Only the trip owner can prepare a recovery booking handoff.');
         $q=$this->pdo->prepare("SELECT o.*,i.status incident_status FROM trip_recovery_options o JOIN trip_recovery_incidents i ON i.id=o.incident_id WHERE o.id=? AND o.dream_trip_id=? LIMIT 1");$q->execute([$optionId,$tripId]);$option=$q->fetch();
         if(!$option)throw new OutOfBoundsException('Recovery option not found.');
-        if(!in_array((string)$option['status'],['active','selected'],true))throw new DomainException('This recovery option is no longer active.');
+        if(!empty($option['prepared_booking_id']))throw new DomainException('This recovery option already has a prepared booking candidate.');
+        if((string)$option['status']!=='active')throw new DomainException('This recovery option is no longer active.');
         if(!empty($option['expires_at'])&&strtotime((string)$option['expires_at'])<=time())throw new DomainException('This provider recovery result is stale. Refresh recovery options before preparing checkout.');
         if(empty($option['transaction_required'])||empty($option['booking_type']))throw new DomainException('This recovery option is planning guidance, not a booking handoff.');
         $url=$this->externalUrl((string)($option['source_url']??''));if($url===null)throw new DomainException('This option has no verified provider checkout URL. Refresh provider research or open the provider directly.');
@@ -153,18 +154,18 @@ final class TripRecoveryIntelligenceService
 
     private function detectTightConnection(int $tripId,array $flight,array $rows,array &$active,int $userId): void
     {
-        $start=strtotime((string)$flight['starts_at']);if(!$start)return;$next=null;
-        foreach($rows as $row){if((int)$row['id']===(int)$flight['id']||empty($row['starts_at'])||in_array((string)$row['status'],['cancelled','unbooked'],true))continue;$ts=strtotime((string)$row['starts_at']);if(!$ts||$ts<=$start)continue;if($next===null||$ts<$next['ts'])$next=['row'=>$row,'ts'=>$ts];}
-        if(!$next)return;$gap=(int)round(($next['ts']-$start)/60);if($gap>240)return;$key='connection:'.(int)$flight['id'].':'.(int)$next['row']['id'];$active[]=$key;$severity=$gap<=120?'high':'medium';
-        $this->upsertIncident($tripId,$key,'missed_connection_risk','booking',(string)$flight['id'],$severity,'Delayed flight may put the next commitment at risk','The next saved commitment starts about '.$gap.' minutes after the delayed flight’s scheduled time. Treat this as a connection/timing risk until live provider timing is confirmed.',(string)$next['row']['starts_at'],$userId);
+        $anchorRaw=(string)($flight['ends_at']??$flight['starts_at']??'');$anchor=strtotime($anchorRaw);if(!$anchor)return;$next=null;
+        foreach($rows as $row){if((int)$row['id']===(int)$flight['id']||empty($row['starts_at'])||in_array((string)$row['status'],['cancelled','unbooked'],true))continue;$ts=strtotime((string)$row['starts_at']);if(!$ts||$ts<=$anchor)continue;if($next===null||$ts<$next['ts'])$next=['row'=>$row,'ts'=>$ts];}
+        if(!$next)return;$gap=(int)round(($next['ts']-$anchor)/60);if($gap>240)return;$key='connection:'.(int)$flight['id'].':'.(int)$next['row']['id'];$active[]=$key;$severity=$gap<=120?'high':'medium';
+        $this->upsertIncident($tripId,$key,'missed_connection_risk','booking',(string)$flight['id'],$severity,'Delayed flight may put the next commitment at risk','The next saved commitment starts about '.$gap.' minutes after the flight’s saved arrival/end time. Treat this as a connection/timing risk until live provider timing is confirmed.',(string)$next['row']['starts_at'],$userId);
     }
 
     private function refreshProviderResearch(int $userId,int $tripId,array $trip,array $access): void
     {
         if(empty($access['can_plan']))return;$provider=new LiveTravelDataProviderService($this->pdo);$open=$this->incidents($tripId);$flightInc=[];$lodgingInc=[];
         foreach($open as $i){if(!in_array($i['status'],['open','reviewed'],true))continue;if(in_array($i['incident_type'],['flight_cancelled','flight_delayed','missed_connection_risk'],true))$flightInc[]=$i;if($i['incident_type']==='lodging_disruption')$lodgingInc[]=$i;}
-        $providerTrip=$trip;$providerTrip['id']=$tripId;
-        try{$weather=$provider->weather($providerTrip);if(!empty($weather['ok'])){foreach(array_slice((array)($weather['alerts']??[]),0,5) as $alert){$title=trim((string)($alert['headline']??$alert['event']??'Weather disruption'));$body=trim((string)($alert['description']??''));$key='weather:'.sha1($title.'|'.$body);$this->upsertIncident($tripId,$key,'weather_disruption','provider','weather','high',$title?:'Weather disruption',$body?:'A live weather alert may affect this trip.',null,$userId);}}}catch(Throwable $e){error_log('Recovery weather research failed: '.$e->getMessage());}
+        $providerTrip=$trip;$providerTrip['id']=$tripId;$providerTrip['user_id']=$userId;
+        try{$weather=$provider->weather($providerTrip);if(!empty($weather['ok'])){$weatherKeys=[];foreach(array_slice((array)($weather['alerts']??[]),0,5) as $alert){$title=trim((string)($alert['headline']??$alert['event']??'Weather disruption'));$body=trim((string)($alert['description']??''));$key='weather:'.sha1($title.'|'.$body);$weatherKeys[]=$key;$this->upsertIncident($tripId,$key,'weather_disruption','provider','weather','high',$title?:'Weather disruption',$body?:'A live weather alert may affect this trip.',null,$userId);}$this->resolveMissingWeather($tripId,$weatherKeys);}}catch(Throwable $e){error_log('Recovery weather research failed: '.$e->getMessage());}
         if($flightInc){try{$flights=$provider->flights($providerTrip);if(!empty($flights['ok']))foreach($flightInc as $incident)$this->storeFlightResearch($tripId,$incident,$flights);}catch(Throwable $e){error_log('Recovery flight research failed: '.$e->getMessage());}}
         if($lodgingInc){try{$lodging=$provider->lodging($providerTrip);if(!empty($lodging['ok']))foreach($lodgingInc as $incident)$this->storeLodgingResearch($tripId,$incident,$lodging);}catch(Throwable $e){error_log('Recovery lodging research failed: '.$e->getMessage());}}
         foreach($this->incidents($tripId) as $incident)if(in_array($incident['status'],['open','reviewed'],true))$this->ensureBaselineOptions($tripId,$incident,$this->bookings($tripId));
@@ -174,7 +175,7 @@ final class TripRecoveryIntelligenceService
     {
         $id=(int)$incident['id'];$type=(string)$incident['incident_type'];$internal=app_url('trip-recovery.php?id='.$tripId);
         if(in_array($type,['flight_cancelled','flight_delayed','missed_connection_risk'],true)){
-            $booking=$this->sourceBooking($incident,$bookings);if($booking&&($url=$this->externalUrl((string)($booking['provider_url']??''))))$this->upsertOption($tripId,$id,'provider-support','provider_support','Open '.((string)($booking['provider_name']??'')?:'the provider').' rebooking/support','Open the saved provider page to review rebooking or support options. Any change is completed with the provider, not by Vacation Brain.',(string)($booking['provider_name']??''),$url,null,null,null,null,null,true,null,null,null,['research_only'=>false]);
+            $booking=$this->sourceBooking($incident,$bookings);if($booking&&($url=$this->externalUrl((string)($booking['provider_url']??''))))$this->upsertOption($tripId,$id,'provider-support','provider_support','Open '.((string)($booking['provider_name']??'')?:'the provider').' rebooking/support','Open the saved provider page to review rebooking or support options. Any change is completed with the provider, not by Vacation Brain.',(string)($booking['provider_name']??''),$url,null,null,null,null,null,false,null,null,null,['research_only'=>true]);
             $this->upsertOption($tripId,$id,'protect-next','protect_next_booking','Protect the next fixed commitment','Review the next fixed booking or reservation before changing the current leg. Vacation Brain can show timing conflicts, but will not change either reservation automatically.',null,app_url('trip-itinerary.php?id='.$tripId),null,null,null,null,null,false,null,null,null,['planning_only'=>true]);
         }elseif($type==='lodging_disruption'){
             $this->upsertOption($tripId,$id,'lodging-research','alternate_lodging','Refresh live lodging alternatives','Use the Recovery Center refresh to load current Booking.com Demand API accommodation results when configured. No room is reserved until a separate provider-handoff approval and checkout.',null,$internal,null,null,'lodging',null,null,false,null,null,null,['planning_only'=>true]);
@@ -200,16 +201,16 @@ final class TripRecoveryIntelligenceService
     {
         $observed=$this->providerTime((string)($lodging['observed_at']??''));$expires=$observed?date('Y-m-d H:i:s',strtotime($observed)+max(300,(int)($lodging['expires_in']??1800))):date('Y-m-d H:i:s',time()+1800);$n=0;
         foreach((array)($lodging['items']??[]) as $item){if($n++>=6)break;$url=$this->externalUrl((string)($item['url']??''));if($url===null)continue;$amount=$item['price_total']??$item['price_display']??null;$currency=(string)($item['currency']??$lodging['currency']??'USD');$name=(string)($item['name']??'Alternate lodging');
-            $this->upsertOption($tripId,(int)$incident['id'],'booking-com:'.(string)($item['id']??sha1($name.$url)),'alternate_lodging',$name,'Live Booking.com accommodation research for the saved trip dates. Availability, taxes, room terms and final price can change before provider checkout.','Booking.com Demand API',$url,$amount,$currency,'lodging',(string)($item['checkin']??'').' 15:00:00',(string)($item['checkout']??'').' 11:00:00',true,$observed,$expires,null,['address'=>(string)($item['address']??''),'available'=>!empty($item['available'])]);
+            $this->upsertOption($tripId,(int)$incident['id'],'booking-com:'.(string)($item['id']??sha1($name.$url)),'alternate_lodging',$name,'Live Booking.com accommodation research for the saved trip dates. Availability, taxes, room terms and final price can change before provider checkout.','Booking.com Demand API',$url,$amount,$currency,'lodging',$this->dateAt((string)($item['checkin']??''),'15:00:00'),$this->dateAt((string)($item['checkout']??''),'11:00:00'),true,$observed,$expires,null,['address'=>(string)($item['address']??''),'available'=>!empty($item['available'])]);
         }
     }
 
     private function upsertIncident(int $tripId,string $key,string $type,string $sourceType,?string $sourceKey,string $severity,string $title,string $summary,?string $startsAt,int $userId): int
     {
-        $severity=in_array($severity,['low','medium','high','critical'],true)?$severity:'medium';$starts=$this->dateTimeOrNull($startsAt);
-        $sql="INSERT INTO trip_recovery_incidents (dream_trip_id,incident_key,incident_type,source_type,source_key,severity,status,title,summary,starts_at,detected_at,last_seen_at) VALUES (?,?,?,?,?,?,'open',?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE incident_type=VALUES(incident_type),source_type=VALUES(source_type),source_key=VALUES(source_key),severity=VALUES(severity),title=VALUES(title),summary=VALUES(summary),starts_at=VALUES(starts_at),status=IF(status IN ('resolved','dismissed'),'open',status),resolved_at=IF(status IN ('resolved','dismissed'),NULL,resolved_at),last_seen_at=NOW(),updated_at=NOW()";
+        $severity=in_array($severity,['low','medium','high','critical'],true)?$severity:'medium';$starts=$this->dateTimeOrNull($startsAt);$beforeQ=$this->pdo->prepare('SELECT id,status FROM trip_recovery_incidents WHERE dream_trip_id=? AND incident_key=? LIMIT 1');$beforeQ->execute([$tripId,$key]);$before=$beforeQ->fetch();
+        $sql="INSERT INTO trip_recovery_incidents (dream_trip_id,incident_key,incident_type,source_type,source_key,severity,status,title,summary,starts_at,detected_at,last_seen_at) VALUES (?,?,?,?,?,?,'open',?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE incident_type=VALUES(incident_type),source_type=VALUES(source_type),source_key=VALUES(source_key),severity=VALUES(severity),title=VALUES(title),summary=VALUES(summary),starts_at=VALUES(starts_at),status=IF(status='resolved','open',status),resolved_at=IF(status='resolved',NULL,resolved_at),last_seen_at=NOW(),updated_at=NOW()";
         $this->pdo->prepare($sql)->execute([$tripId,$key,$type,$sourceType,$sourceKey,$severity,$this->clip($title,220),$this->clip($summary,1200),$starts]);
-        $q=$this->pdo->prepare('SELECT id FROM trip_recovery_incidents WHERE dream_trip_id=? AND incident_key=? LIMIT 1');$q->execute([$tripId,$key]);$id=(int)$q->fetchColumn();if($id>0)$this->event($tripId,$id,null,$userId,'detected',['incident_type'=>$type,'severity'=>$severity]);return $id;
+        $q=$this->pdo->prepare('SELECT id FROM trip_recovery_incidents WHERE dream_trip_id=? AND incident_key=? LIMIT 1');$q->execute([$tripId,$key]);$id=(int)$q->fetchColumn();if($id>0&&(!$before||($before['status']??'')==='resolved'))$this->event($tripId,$id,null,$userId,'detected',['incident_type'=>$type,'severity'=>$severity]);return $id;
     }
 
     private function upsertOption(int $tripId,int $incidentId,string $key,string $type,string $title,string $summary,?string $provider,?string $url,mixed $amount,?string $currency,?string $bookingType,?string $startsAt,?string $endsAt,bool $transactionRequired,?string $observedAt,?string $expiresAt,?int $preparedBookingId,array $payload): void
@@ -221,7 +222,13 @@ final class TripRecoveryIntelligenceService
 
     private function resolveMissingDerived(int $tripId,array $activeKeys): void
     {
-        $sources=['booking','itinerary','traveler'];$params=[$tripId];$sql="UPDATE trip_recovery_incidents SET status='resolved',resolved_at=NOW(),updated_at=NOW() WHERE dream_trip_id=? AND status IN ('open','reviewed') AND source_type IN ('booking','itinerary','traveler')";
+        $params=[$tripId];$sql="UPDATE trip_recovery_incidents SET status='resolved',resolved_at=NOW(),updated_at=NOW() WHERE dream_trip_id=? AND status IN ('open','reviewed') AND source_type IN ('booking','itinerary','traveler')";
+        if($activeKeys){$sql.=' AND incident_key NOT IN ('.implode(',',array_fill(0,count($activeKeys),'?')).')';$params=array_merge($params,$activeKeys);}$this->pdo->prepare($sql)->execute($params);
+    }
+
+    private function resolveMissingWeather(int $tripId,array $activeKeys): void
+    {
+        $params=[$tripId];$sql="UPDATE trip_recovery_incidents SET status='resolved',resolved_at=NOW(),updated_at=NOW() WHERE dream_trip_id=? AND status IN ('open','reviewed') AND source_type='provider' AND incident_type='weather_disruption'";
         if($activeKeys){$sql.=' AND incident_key NOT IN ('.implode(',',array_fill(0,count($activeKeys),'?')).')';$params=array_merge($params,$activeKeys);}$this->pdo->prepare($sql)->execute($params);
     }
 
@@ -230,10 +237,11 @@ final class TripRecoveryIntelligenceService
         $q=$this->pdo->prepare("SELECT * FROM trip_recovery_incidents WHERE dream_trip_id=? ORDER BY FIELD(status,'open','reviewed','resolved','dismissed'),FIELD(severity,'critical','high','medium','low'),COALESCE(starts_at,'9999-12-31'),updated_at DESC,id DESC LIMIT 80");$q->execute([$tripId]);return $q->fetchAll()?:[];
     }
 
+    /** Read-only projection: expired active provider options render as stale without mutating shared state. */
     private function options(int $tripId): array
     {
-        $this->pdo->prepare("UPDATE trip_recovery_options SET status='stale',updated_at=NOW() WHERE dream_trip_id=? AND status='active' AND expires_at IS NOT NULL AND expires_at<=NOW()")->execute([$tripId]);
-        $q=$this->pdo->prepare("SELECT * FROM trip_recovery_options WHERE dream_trip_id=? ORDER BY FIELD(status,'selected','active','stale','dismissed'),provider_observed_at DESC,id ASC LIMIT 240");$q->execute([$tripId]);$rows=$q->fetchAll()?:[];foreach($rows as &$row){$row['transaction_required']=!empty($row['transaction_required']);$row['public_payload']=$this->publicPayload((string)($row['public_payload_json']??''));unset($row['public_payload_json']);}unset($row);return $rows;
+        $q=$this->pdo->prepare("SELECT * FROM trip_recovery_options WHERE dream_trip_id=? ORDER BY FIELD(status,'selected','active','stale','dismissed'),provider_observed_at DESC,id ASC LIMIT 240");$q->execute([$tripId]);$rows=$q->fetchAll()?:[];
+        foreach($rows as &$row){if((string)$row['status']==='active'&&!empty($row['expires_at'])&&strtotime((string)$row['expires_at'])<=time())$row['status']='stale';$row['transaction_required']=!empty($row['transaction_required']);$row['public_payload']=$this->publicPayload((string)($row['public_payload_json']??''));unset($row['public_payload_json']);}unset($row);return $rows;
     }
 
     private function bookings(int $tripId): array
@@ -268,6 +276,7 @@ final class TripRecoveryIntelligenceService
     private function publicPayload(string $json): array{$v=$json!==''?json_decode($json,true):null;return is_array($v)?$v:[];}
     private function externalUrl(string $url): ?string{$url=trim($url);if($url===''||strlen($url)>1500||!preg_match('#^https://#i',$url))return null;$host=(string)(parse_url($url,PHP_URL_HOST)?:'');return $host!==''?$url:null;}
     private function providerTime(string $iso): ?string{$ts=$iso!==''?strtotime($iso):false;return $ts?date('Y-m-d H:i:s',$ts):date('Y-m-d H:i:s');}
+    private function dateAt(string $date,string $time): ?string{return preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)?$date.' '.$time:null;}
     private function dateTimeOrNull(?string $v): ?string{$v=trim((string)$v);if($v==='')return null;$ts=strtotime($v);return $ts?date('Y-m-d H:i:s',$ts):null;}
     private function clip(string $v,int $max): string{$v=trim(preg_replace('/\s+/u',' ',$v)??$v);return function_exists('mb_substr')?mb_substr($v,0,$max):substr($v,0,$max);}
     private function nullableClip(?string $v,int $max): ?string{$s=$this->clip((string)$v,$max);return $s===''?null:$s;}
