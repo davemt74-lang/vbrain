@@ -207,7 +207,6 @@ jobs:
           find assets/merch assets/sample/destinations -type f -name '*.webp' -print0 | xargs -0 -n1 identify >/dev/null
 
       - name: Build deploy package
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -217,7 +216,7 @@ jobs:
           (cd /tmp/vacation-brain-deploy && zip -qr "$GITHUB_WORKSPACE/vacation-brain-deploy.zip" .)
           test -s vacation-brain-deploy.zip
           unzip -tq vacation-brain-deploy.zip >/dev/null
-          mapfile -t packaged < <(unzip -Z1 vacation-brain-deploy.zip)
+          unzip -Z1 vacation-brain-deploy.zip > /tmp/vacation-brain-packaged.txt
           required=(
             upgrade.php config-example.php
             api/shell-state.php api/dashboard-tabs.php api/dashboard-destination-context.php api/photos.php api/trip-intelligence.php api/travel-watches.php api/brain-activity.php api/trip-agent-jobs.php api/trip-command-center.php api/trip-bookings.php api/travel-operations.php api/travel-copilot.php
@@ -235,7 +234,7 @@ jobs:
             assets/merch/palm-springs-hoodie-front.webp assets/merch/palm-springs-hoodie-back.webp assets/merch/palm-springs-trucker-hat.webp
           )
           for path in "${required[@]}"; do
-            printf '%s\n' "${packaged[@]}" | grep -Fxq "$path" || { echo "Missing deploy path: $path" >&2; exit 1; }
+            grep -Fxq "$path" /tmp/vacation-brain-packaged.txt || { echo "Missing deploy path: $path" >&2; exit 1; }
           done
 
       - name: Upload deploy package
