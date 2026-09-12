@@ -14,7 +14,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     catch(Throwable $e){error_log('Booking Inbox action failed: '.$e->getMessage());$error='Vacation Brain could not process that confirmation right now.';}
 }
 $rows=$service->ready()?$service->inbox($userId,120):[];$trips=$service->ready()?$service->trips($userId):[];$reviewId=max(0,(int)($_GET['review']??0));$review=$reviewId&&$service->ready()?$service->get($userId,$reviewId,true):null;$success=flash('success');
-$pageStyles=['assets/trip-planning-hub.css','assets/booking-inbox.css'];$title='Booking Inbox — Vacation Brain';
+$pageStyles=['assets/trip-planning-hub.css','assets/booking-inbox.css','assets/booking-mailbox.css'];$title='Booking Inbox — Vacation Brain';
 function vb_bi_label(string $v): string{return $v==='verified'?'Traveler verified':ucwords(str_replace('_',' ',$v));}
 function vb_bi_dt(mixed $v): string{$s=trim((string)$v);if($s==='')return ''; $t=strtotime($s);return $t?date('M j, Y · g:i A',$t):$s;}
 function vb_bi_input_dt(mixed $v): string{$s=trim((string)$v);if($s==='')return ''; $t=strtotime($s);return $t?date('Y-m-d\TH:i',$t):'';}
@@ -31,6 +31,7 @@ require __DIR__.'/partials/header.php';
     </nav>
     <a class="button primary vb-plan-hub-add-trip" href="<?=e(app_url('dream-new.php'))?>">+ Add Trip</a>
   </div>
+  <nav class="vb-mail-subtabs" aria-label="Booking Inbox modes"><a class="active" href="<?=e(app_url('booking-inbox.php'))?>" aria-current="page">Imports</a><a href="<?=e(app_url('booking-mailbox.php'))?>">Connected mail</a></nav>
 
   <?php if($success):?><div class="alert success"><?=e($success)?></div><?php endif;?>
   <?php if($error):?><div class="alert error"><?=e($error)?></div><?php endif;?>
