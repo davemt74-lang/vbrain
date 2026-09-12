@@ -80,6 +80,7 @@ require_once __DIR__ . '/Services/WeatherEnvyService.php';
 require_once __DIR__ . '/Services/RoastService.php';
 require_once __DIR__ . '/Services/TripUnifiedInboxService.php';
 require_once __DIR__ . '/Services/TripUnifiedInboxAgentContextService.php';
+require_once __DIR__ . '/Services/TripUnifiedInboxWorkerService.php';
 require_once __DIR__ . '/Services/VacationAgentService.php';
 require_once __DIR__ . '/Services/NotificationService.php';
 require_once __DIR__ . '/Services/TravelWatchService.php';
