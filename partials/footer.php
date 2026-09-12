@@ -1,7 +1,7 @@
 <?php $footerUser=current_user(); $footerPage=basename($_SERVER['PHP_SELF']??''); ?>
 <?php if($footerUser && in_array($footerPage,['dream-trip.php','travel-mode.php'],true) && (int)($_GET['id']??0)>0):?><?php require __DIR__.'/live-travel-data-panel.php';?><?php require __DIR__.'/proactive-trip-panel.php';?><?php endif;?>
 <?php if($footerUser && $footerPage==='dream-trip.php' && (int)($_GET['id']??0)>0):?><?php require __DIR__.'/trip-itinerary-intelligence.php';?><?php endif;?>
-<?php if($footerUser && $footerPage==='travel-mode.php' && (int)($_GET['id']??0)>0):?><?php require __DIR__.'/travel-mode-itinerary-overlay.php';?><?php endif;?>
+<?php if($footerUser && $footerPage==='travel-mode.php' && (int)($_GET['id']??0)>0):?><?php require __DIR__.'/travel-mode-spend-panel.php';?><?php require __DIR__.'/travel-mode-itinerary-overlay.php';?><?php endif;?>
 <?php if($footerUser && $footerPage==='trip-bookings.php' && isset($userId,$tripId) && (int)$tripId>0):?><?php require __DIR__.'/flight-tracking-panel.php';?><?php endif;?>
 </main>
 <?php if(!$footerUser):?><footer class="site-footer"><div class="shell footer-shell"><div><strong>Vacation Brain</strong><div class="muted small">Daydream more. Work less.</div></div><div class="footer-copy"><?=e(diagnosis_disclaimer())?></div></div></footer><?php endif;?>
