@@ -20,6 +20,7 @@ final class BookingActionAgentContextService
         try{if(class_exists('TripItineraryAgentContextService')){$itinerary=new TripItineraryAgentContextService($this->pdo);if($itinerary->ready()){$ctx=$itinerary->context($userId,3);if($ctx!=='')$sections[]=$ctx;}}}catch(Throwable){}
         try{if(class_exists('TripTravelDayCopilotAgentContextService')){$copilot=new TripTravelDayCopilotAgentContextService($this->pdo);if($copilot->ready()){$ctx=$copilot->context($userId,3);if($ctx!=='')$sections[]=$ctx;}}}catch(Throwable){}
         try{if(class_exists('TripRecoveryAgentContextService')){$recovery=new TripRecoveryAgentContextService($this->pdo);if($recovery->ready()){$ctx=$recovery->context($userId,3);if($ctx!=='')$sections[]=$ctx;}}}catch(Throwable){}
+        try{if(class_exists('TripDisruptionResolutionAgentContextService')){$resolution=new TripDisruptionResolutionAgentContextService($this->pdo);if($resolution->ready()){$ctx=$resolution->context($userId,3);if($ctx!=='')$sections[]=$ctx;}}}catch(Throwable){}
         try{if(class_exists('TripUnifiedInboxAgentContextService')){$inbox=new TripUnifiedInboxAgentContextService($this->pdo);if($inbox->ready()){$ctx=$inbox->context($userId,8);if($ctx!=='')$sections[]=$ctx;}}}catch(Throwable){}
         return implode("\n\n",$sections);
     }
