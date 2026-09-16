@@ -8,9 +8,80 @@ if ($index === false) {
     exit(1);
 }
 
-// The current editorial landing intentionally replaces the older merch-heavy
-// homepage. Keep this contract compatible with both layouts so a redesign does
-// not have to preserve obsolete ecommerce markup just to satisfy CI.
+// Destination-guide landing introduced in the public homepage redesign.
+// Keep the contract focused on the current user-facing behavior while retaining
+// compatibility with the previous editorial and legacy merch layouts.
+if (strpos($index, 'class="vbg-page"') !== false) {
+    $guideCss = $root . '/assets/landing-editorial.css';
+    if (!is_file($guideCss)) {
+        fwrite(STDERR, "Destination-guide landing stylesheet is missing.\n");
+        exit(1);
+    }
+
+    $requiredIndex = [
+        "['assets/landing-editorial.css']",
+        '/assets/landing-guide/',
+        'hero-destination-guide.webp',
+        'guide-destinations.webp',
+        'guide-trips.webp',
+        'guide-activities.webp',
+        'guide-travel-guides.webp',
+        'getaway-multiday.webp',
+        'getaway-weekend.webp',
+        'getaway-daytrip.webp',
+        'phone-travel-companion.webp',
+        'footer-travel-guide.webp',
+        'Where do you want to go?',
+        'name="q"',
+        'name="date"',
+        'name="travelers"',
+        'Popular Getaways',
+        'Multi-Day',
+        'Weekend',
+        'Day Trip',
+        'Explore by what you love',
+        'Your personal',
+        'travel companion',
+        'Real destinations.',
+        "app_url('destinations.php')",
+        "app_url('agent.php')",
+    ];
+    foreach ($requiredIndex as $needle) {
+        if (strpos($index, $needle) === false) {
+            fwrite(STDERR, "Missing destination-guide landing behavior: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    $css = file_get_contents($guideCss);
+    if ($css === false) {
+        fwrite(STDERR, "Could not read destination-guide landing stylesheet.\n");
+        exit(1);
+    }
+
+    $requiredCss = [
+        '.vbg-header',
+        '.vbg-hero',
+        '.vbg-search',
+        '.vbg-guide-grid',
+        '.vbg-getaway-grid',
+        '.vbg-activity-grid',
+        '.vbg-companion',
+        '.vbg-footer-hero',
+        '@media (max-width:760px)',
+    ];
+    foreach ($requiredCss as $needle) {
+        if (strpos($css, $needle) === false) {
+            fwrite(STDERR, "Missing destination-guide CSS behavior: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    echo "Destination-guide landing contract passed.\n";
+    exit(0);
+}
+
+// Previous editorial landing contract.
 if (strpos($index, "assets/landing-editorial.css") !== false) {
     $editorialCss = $root . '/assets/landing-editorial.css';
     if (!is_file($editorialCss)) {
